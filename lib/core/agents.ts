@@ -17,6 +17,7 @@ const HANDLE = /^[a-z0-9_]{3,24}$/;
 
 export type Agent = { id: string; handle: string; name: string; bio: string | null; avatar_url: string | null; owner_user_id: string | null; wallet_mode: "custodial" | "imported" | "payout"; wallet_address: string | null; payout_address: string | null; verify_code: string; x_post_url: string | null; x_handle: string | null; verify_status: string; autotrade: boolean; created_at: string };
 
+async function imageOk(u: string) { try { const r = await fetch(u.replace(/^ipfs:\/\//, "https://ipfs.io/ipfs/"), { method: "GET", signal: AbortSignal.timeout(6000) }); return r.ok && (r.headers.get("content-type") ?? "").startsWith("image/"); } catch { return false; } }
 function validAddress(a: string) { try { return PublicKey.isOnCurve(new PublicKey(a).toBytes()) || true; } catch { return false; } }
 
 /** Registers an agent. Credentials (API key, and the generated wallet's secret key) are returned exactly once. */
@@ -41,6 +42,7 @@ export async function registerAgent(b: any, owner?: Ctx) {
     walletAddress = await importKeypair(key, kp).catch((e: any) => { throw new UserError(e.message); }); kp.secretKey.fill(0);
   } else { payout = String(b?.wallet?.address ?? "").trim(); if (!validAddress(payout)) throw new UserError("wallet.address must be a Solana address (base58)."); }
   if (mode !== "payout" && b?.wallet?.address) { payout = String(b.wallet.address).trim(); if (!validAddress(payout)) throw new UserError("wallet.address must be a Solana address."); }
+  if (avatar && !(await imageOk(avatar))) avatar = null;
   if (!avatar) avatar = `${cfg.appUrl}/api/og?type=avatar&seed=${handle}`;
   await sql`insert into agents(id,handle,name,bio,avatar_url,owner_user_id,wallet_mode,wallet_address,payout_address,api_key_hash,verify_code) values(${id},${handle},${name},${bio},${avatar},${owner?.userId ?? null},${mode},${walletAddress},${payout},${hash(apiKey)},${verifyCode})`;
   await sql`insert into audit_log(actor,action,detail) values(${key},'agent_register',${sql.json({ handle, mode })})`;
@@ -89,7 +91,7 @@ export async function updateAgent(ctx: Ctx, b: any) {
   if (!ctx.agentId) throw new UserError("Use your agent API key.", 401);
   if (b.bio != null) await sql`update agents set bio=${String(b.bio).slice(0, 280)} where id=${ctx.agentId}`;
   if (b.name) await sql`update agents set name=${String(b.name).slice(0, 48)} where id=${ctx.agentId}`;
-  if (b.avatar_url) { if (!/^https:\/\//.test(b.avatar_url)) throw new UserError("avatar_url must be https://."); await sql`update agents set avatar_url=${b.avatar_url} where id=${ctx.agentId}`; }
+  if (b.avatar_url) { if (!/^https:\/\//.test(b.avatar_url)) throw new UserError("avatar_url must be https://."); if (!(await imageOk(b.avatar_url))) throw new UserError("avatar_url must point to a reachable image."); await sql`update agents set avatar_url=${b.avatar_url} where id=${ctx.agentId}`; }
   if (b.payout_address) { if (!validAddress(b.payout_address)) throw new UserError("payout_address must be a Solana address."); await sql`update agents set payout_address=${b.payout_address} where id=${ctx.agentId}`; }
   if (b.autotrade != null) await sql`update agents set autotrade=${!!b.autotrade} where id=${ctx.agentId}`;
   return agentPublic((await sql`select * from agents where id=${ctx.agentId}`)[0] as Agent);

@@ -9,7 +9,7 @@ import { resolveXHandle } from "@/lib/xapi";
 import { gatewayUrl } from "@/lib/ipfs";
 
 export type Draft = Record<string, any> & { id: string; owner_key: string; status: string };
-export type PrepareArgs = { draft_id?: string; start_new?: boolean; name?: string; ticker?: string; logo_image?: string; logo_url?: string; description?: string; website?: string; x?: string; telegram?: string; pair?: string; fee_mode?: "x" | "wallet" | "holders"; fee_x?: string; fee_wallet?: string; skip_socials?: boolean; creator_fee_percent?: number };
+export type PrepareArgs = { auto_fill?: boolean; theme?: string; draft_id?: string; start_new?: boolean; name?: string; ticker?: string; logo_image?: string; logo_url?: string; description?: string; website?: string; x?: string; telegram?: string; pair?: string; fee_mode?: "x" | "wallet" | "holders"; fee_x?: string; fee_wallet?: string; skip_socials?: boolean; creator_fee_percent?: number };
 
 export const sha = (s: string) => createHash("sha256").update(s).digest("hex");
 const UPLOAD_TTL_MS = 2 * 3600_000;
@@ -68,7 +68,14 @@ export function summary(d: Draft) {
 
 export async function prepareLaunch(ctx: Ctx, a: PrepareArgs): Promise<{ text: string; draft: Draft; uploadUrl?: string; ready: boolean; error?: string }> {
   let d: Draft = undefined as unknown as Draft;
-  if (a.start_new) { await sql`update drafts set status='discarded' where owner_key=${ctx.ownerKey} and status in ('open','ready')`; }
+  if (a.start_new) {
+    // Models often resend start_new on later turns; don't throw away a fresh, in-progress draft unless a different coin is clearly meant.
+    const cur = (await openDraft(ctx)) as Draft | undefined;
+    const fresh = cur && Date.now() - +new Date((cur as any).updated_at ?? 0) < 15 * 60_000;
+    const different = a.name && cur?.name && a.name.trim().toLowerCase() !== cur.name.toLowerCase();
+    if (cur && fresh && !different && !(a.auto_fill && cur.name)) d = cur;
+    else await sql`update drafts set status='discarded' where owner_key=${ctx.ownerKey} and status in ('open','ready')`;
+  }
   else if (a.draft_id) d = await loadDraft(ctx, a.draft_id);
   else d = (await openDraft(ctx)) as Draft;
   if (d && !["open", "ready"].includes(d.status)) {
@@ -78,7 +85,23 @@ export async function prepareLaunch(ctx: Ctx, a: PrepareArgs): Promise<{ text: s
   if (!d) [d] = await sql<Draft[]>`insert into drafts(owner_key) values(${ctx.ownerKey}) returning *`;
   if (!d) throw new Error("draft insert failed");
   const upd: Record<string, any> = {};
-  let err: string | undefined;
+  let err: string | undefined; const notes: string[] = [];
+  // "make me a coin / you come up with everything": fill every missing creative field in one go
+  if (a.auto_fill && (!(a.name ?? d.name) || !(a.ticker ?? d.ticker) || !(a.logo_image || a.logo_url || d.logo_cid) || (a.description ?? d.description) == null)) {
+    const { generateTokenIdea } = await import("@/lib/image-gen");
+    const t = await generateTokenIdea(a.theme ?? a.name ?? d.name ?? undefined);
+    if (!(a.name ?? d.name)) a.name = t.name; if (!(a.ticker ?? d.ticker)) a.ticker = t.ticker;
+    if ((a.description ?? d.description) == null) a.description = t.description;
+    if (!(a.logo_image || a.logo_url || d.logo_cid) && t.logo?.cid) upd.logo_cid = t.logo.cid;
+    if (a.skip_socials === undefined && !d.socials_done) a.skip_socials = true;
+    if (a.pair === undefined && !d.pair_mint) a.pair = "SOL";
+    notes.push(`Auto-filled: ${a.name} ($${a.ticker})`);
+  }
+  // fees: use the signed-in / connected wallet automatically when nothing was chosen
+  if (!a.fee_mode && !a.fee_wallet && !a.fee_x && !d.fee_mode) {
+    if (ctx.walletAddress) { a.fee_mode = "wallet"; a.fee_wallet = ctx.walletAddress; notes.push(`Fees go to your connected wallet ${ctx.walletAddress} (say another wallet or an X handle to change).`); }
+    else if (ctx.xUserId) { a.fee_mode = "x"; a.fee_x = "me"; notes.push(`Fees go to your X account @${ctx.xUsername ?? ctx.xUserId} (say a wallet to change).`); }
+  }
   const tryField = async (fn: () => Promise<void> | void) => { try { await fn(); } catch (e) { if (e instanceof UserError) err ??= e.message; else throw e; } };
   if (a.name !== undefined) await tryField(() => { upd.name = vName(a.name!); });
   if (a.ticker !== undefined) await tryField(() => { upd.ticker = vTicker(a.ticker!); });
@@ -127,6 +150,7 @@ export async function prepareLaunch(ctx: Ctx, a: PrepareArgs): Promise<{ text: s
   if (status !== d.status) [d] = await sql<Draft[]>`update drafts set status=${status} where id=${d.id} returning *`;
   let text = `draft_id: ${d.id}\n`;
   if (err) text += `ERROR: ${err}\n`;
+  if (notes.length) text += notes.map(n => `NOTE: ${n}`).join("\n") + "\n";
   text += `\nCurrent draft:\n${summary(d)}\n\n`;
   let uploadUrl: string | undefined;
   if (nq) {

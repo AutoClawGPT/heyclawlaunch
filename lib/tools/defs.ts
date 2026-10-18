@@ -10,6 +10,8 @@ export const toolDefs = () => ({
     annotations: { readOnlyHint: false, destructiveHint: false, idempotentHint: true, openWorldHint: false },
     inputSchema: {
       draft_id: z.string().describe("Draft id from a previous prepare_launch call. Omit to use the user's open draft.").optional(),
+      auto_fill: z.boolean().describe("true when the user wants you to come up with the coin (\"make me a coin\", \"you pick everything\", \"surprise me\"): generates every missing field (name, ticker, description, logo) in one call. Never ask for fields it filled.").optional(),
+      theme: z.string().describe("Optional theme/idea for auto_fill, e.g. \"space frog\".").optional(),
       start_new: z.boolean().describe("true when the user wants to start a different token from scratch: discards their open draft first.").optional(),
       name: z.string().describe("Coin name (max 32 characters).").optional(),
       ticker: z.string().describe("Coin ticker/symbol, letters and digits only (max 10), e.g. DOGE.").optional(),

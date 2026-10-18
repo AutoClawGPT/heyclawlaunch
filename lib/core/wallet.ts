@@ -52,25 +52,29 @@ export async function myWallet(ctx: Ctx) {
   return lines.join("\n");
 }
 
+const CLAIM_MIN = 650_240; // lamports, same claim minimum as HeyGrok (0.00065024 SOL)
 export async function claimFees(ctx: Ctx) {
   const key = need(ctx);
   const addr = await findCustodial(key) ?? await getOrCreateCustodial(key);
   const coins = await sql`select mint,ticker,quote_mint from launches where recipient=${addr} and split_status='done'`;
   if (!coins.length) return `nothing to claim yet (minimum 0.00065024 SOL): no coins pay fees to ${addr}.`;
   const lines: string[] = []; let total = 0;
+  const waiting = new Map((await feesWaiting(addr).catch(() => [] as any[])).map((f: any) => [f.mint, f.lamports]));
   for (const c of coins) {
+    if (waiting.size && (waiting.get(c.mint) ?? 0) < CLAIM_MIN) { lines.push(`- $${c.ticker}: below the minimum, skipped`); continue; }
     try {
       const before = await conn().getBalance(new PublicKey(addr));
       const r = await distribute(new PublicKey(c.mint), new PublicKey(c.quote_mint));
       if (r.skipped) { lines.push(`- $${c.ticker}: below the minimum, skipped`); continue; }
       const after = await conn().getBalance(new PublicKey(addr));
       const got = after - before - (before === 0 ? RENT_ZERO : 0);
+      if (got <= 0) { lines.push(`- $${c.ticker}: nothing arrived (fees below the minimum)`); continue; }
       total += got;
       lines.push(`- $${c.ticker}: +${fmt(got / LAMPORTS_PER_SOL)} SOL ${solscanTx(r.sig)}`);
       await sql`insert into wallet_ops(owner_key,kind,status,sig) values(${key},'claim','done',${r.sig})`;
     } catch (e: any) { lines.push(`- $${c.ticker}: failed (${String(e.message).slice(0, 120)})`); }
   }
-  if (total <= 0 && lines.every(l => l.includes("skipped"))) return `nothing to claim yet (minimum 0.00065024 SOL)\n${lines.join("\n")}`;
+  if (total <= 0) return `nothing to claim yet (minimum 0.00065024 SOL)\n${lines.join("\n")}`;
   return `Claimed into ${addr}:\n${lines.join("\n")}\nTotal: ${fmt(total / LAMPORTS_PER_SOL)} SOL`;
 }
 

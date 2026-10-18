@@ -8,7 +8,7 @@ import { indexTradesOnce, runAirdropsOnce } from "@/lib/core/leaderboard";
 import { botTickOnce } from "@/lib/core/bots";
 import { hasRedis } from "@/lib/redis";
 /** setInterval that never overlaps itself. */
-function every(ms: number, name: string, fn: () => Promise<any>) { let busy = false; const run = async () => { if (busy) return; busy = true; try { const r = await fn(); if (r && (Array.isArray(r) ? r.length : (r.ran || r > 0))) console.log(`[${name}]`, JSON.stringify(r).slice(0, 300)); } catch (e: any) { console.error(`[${name}]`, e?.message ?? e); } finally { busy = false; } }; run(); return setInterval(run, ms); }
+function every(ms: number, name: string, fn: () => Promise<any>) { let busy = false; const run = async () => { if (busy) return; busy = true; try { const r = await Promise.race([fn(), new Promise((_, rej) => setTimeout(() => rej(new Error(`${name} timed out after 90s`)), 90_000))]) as any; if (r && (Array.isArray(r) ? r.length : (r.ran || r > 0))) console.log(`[${name}]`, JSON.stringify(r).slice(0, 300)); } catch (e: any) { console.error(`[${name}]`, e?.message ?? e); } finally { busy = false; } }; run(); return setInterval(run, ms); }
 export async function splitSenderOnce() {
   const rows = await sql`select id from launches where split_status='pending' and split_attempts < 20 order by launched_at limit 10`;
   const res = []; for (const r of rows) res.push(await runSplit(r.id)); return res;

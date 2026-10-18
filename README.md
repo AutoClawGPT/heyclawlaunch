@@ -73,6 +73,61 @@ flowchart LR
 
 Tools: `prepare_launch`, `list_pairs`, `get_logo_upload_link`, `confirm_launch`, `launch_status`, `my_launches`, `my_wallet`, `claim_fees`, `withdraw`, `swap`, plus `generate_logo`, `generate_token_idea`, `list_templates`, `use_template`, `leaderboard`, `volume_bot`. Sensitive tools (`confirm_launch`, `withdraw`, `swap`, `volume_bot`) need an explicit confirmation step.
 
+### Connect your agent
+
+Two Streamable HTTP endpoints, OAuth 2.1 with PKCE and dynamic client registration (no API keys to paste):
+
+| Endpoint | What it does | Auth |
+|---|---|---|
+| `https://heyclawlaunch.vercel.app/mcp` | launch, logos, templates, leaderboard, status | none |
+| `https://heyclawlaunch.vercel.app/mcp/wallet` | wallet, claim, withdraw, swap, volume bots | OAuth (sign in with a Solana wallet or X once) |
+
+**Claude Code**
+```bash
+claude mcp add --transport http heyclawlaunch https://heyclawlaunch.vercel.app/mcp
+claude mcp add --transport http heyclawlaunch-wallet https://heyclawlaunch.vercel.app/mcp/wallet
+```
+Then run `/mcp` in Claude Code and pick **Authenticate** for the wallet server.
+
+**Claude Desktop / claude.ai**: Settings → Connectors → *Add custom connector* → paste each URL above. Or, for older Desktop builds, in `claude_desktop_config.json`:
+```json
+{ "mcpServers": {
+  "heyclawlaunch":        { "command": "npx", "args": ["-y", "mcp-remote", "https://heyclawlaunch.vercel.app/mcp"] },
+  "heyclawlaunch-wallet": { "command": "npx", "args": ["-y", "mcp-remote", "https://heyclawlaunch.vercel.app/mcp/wallet"] }
+} }
+```
+
+**Cursor**: `~/.cursor/mcp.json` (or `.cursor/mcp.json` in a project)
+```json
+{ "mcpServers": {
+  "heyclawlaunch":        { "url": "https://heyclawlaunch.vercel.app/mcp" },
+  "heyclawlaunch-wallet": { "url": "https://heyclawlaunch.vercel.app/mcp/wallet" }
+} }
+```
+Cursor opens the browser sign-in the first time a wallet tool runs.
+
+**Hermes Agent**: `~/.hermes/config.yaml`
+```yaml
+mcp_servers:
+  heyclawlaunch:
+    url: "https://heyclawlaunch.vercel.app/mcp"
+  heyclawlaunch-wallet:
+    url: "https://heyclawlaunch.vercel.app/mcp/wallet"
+    auth: oauth
+```
+
+**ChatGPT**: Settings → Apps & Connectors → Advanced → enable Developer mode → *Create* → name `HeyClawLaunch`, MCP server URL `https://heyclawlaunch.vercel.app/mcp/wallet`, authentication **OAuth** (the client registers itself).
+
+**Any MCP SDK client**
+```ts
+import { Client } from "@modelcontextprotocol/sdk/client/index.js";
+import { StreamableHTTPClientTransport } from "@modelcontextprotocol/sdk/client/streamableHttp.js";
+const c = new Client({ name: "my-agent", version: "1.0.0" });
+await c.connect(new StreamableHTTPClientTransport(new URL("https://heyclawlaunch.vercel.app/mcp")));
+console.log((await c.listTools()).tools.map(t => t.name)); // 16 tools
+```
+`scripts/devnet/11-mcp-oauth-e2e.ts` runs the full flow against the live URL: dynamic registration, SIWS sign-in, consent, PKCE, token and refresh rotation, then wallet tools.
+
 ## Setup
 
 ```bash

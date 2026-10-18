@@ -1,6 +1,7 @@
 "use client";
 import { useEffect, useRef, useState } from "react";
 import { useRobot } from "./useRobot";
+import { useVoiceAgent } from "@/components/hcl/useVoiceAgent";
 import { RoundBtn, linkify } from "./Buttons";
 import Robot, { useMascot } from "./Robot";
 import LogoActions from "./LogoActions";
@@ -16,19 +17,19 @@ function Composer({ r, inputRef }: { r: ReturnType<typeof useRobot>; inputRef: R
     <button className="btn-primary shrink-0" disabled={r.busy}>Send</button></form>;
 }
 export default function CallScreen() {
-  const r = useRobot(); const mascot = useMascot(r); const [typing, setTyping] = useState(false); const end = useRef<HTMLDivElement>(null); const inp = useRef<HTMLInputElement>(null);
+  const r = useRobot(); const v = useVoiceAgent(t => r.send(t)); const m0 = useMascot(r); const mascot = v.state === "talking" ? "talking" : v.state === "listening" ? "listening" : v.state === "thinking" || v.state === "connecting" ? "thinking" : m0; const [typing, setTyping] = useState(false); const end = useRef<HTMLDivElement>(null); const inp = useRef<HTMLInputElement>(null);
   useEffect(() => { end.current?.scrollIntoView({ behavior: "smooth", block: "nearest" }); }, [r.messages, r.busy, r.pending]);
   useEffect(() => { if (r.messages.length) setTyping(true); }, [r.messages.length]);
-  const c = r.ui.card ?? {}; const status = r.listening ? "LISTENING…" : r.busy ? "THINKING…" : r.ui.live ? "YOUR COIN IS LIVE" : r.messages.length ? "IN CALL" : "READY WHEN YOU ARE";
+  const c = r.ui.card ?? {}; const status = v.state === "talking" ? "CLAW IS TALKING…" : v.state === "listening" ? "LISTENING… (TAP TO HANG UP)" : v.state === "thinking" || v.state === "connecting" ? "THINKING…" : r.listening ? "LISTENING…" : r.busy ? "THINKING…" : r.ui.live ? "YOUR COIN IS LIVE" : r.messages.length ? "IN CALL" : "READY WHEN YOU ARE";
   const dim = (v?: string) => v ? "" : " text-[var(--muted)]";
   return (
     <main className="wrap py-6"><h1 className="sr-only">Call Claw to launch a coin</h1>
       <div className="grid grid-cols-[minmax(0,1fr)] gap-8 lg:h-[calc(100svh-var(--nav-h)-48px)] lg:min-h-[600px] lg:grid-cols-[minmax(0,1fr)_minmax(0,1fr)] lg:gap-14">
         <section className="flex min-h-0 flex-col items-center justify-center">
           <div className="relative h-[380px] w-full shrink sm:h-[460px] lg:h-[min(64vh,580px)]"><div className="absolute inset-0" aria-hidden="true"><Robot state={mascot} /></div></div>
-          <div className="mono inline-flex h-[44px] items-center gap-3 rounded-[12px] border px-5 text-[14px] border-[var(--line)] bg-[var(--bg-2)]"><span className="flex h-4 items-center gap-[3px]">{[6, 10, 14, 8].map((h, i) => <span key={i} className="block w-[3px] rounded-full bg-current" style={{ height: r.listening || r.busy ? h : 6 }}></span>)}</span>{status}</div>
+          {v.err && <p className="mono mb-2 text-[12px] text-[var(--claw)]">Voice: {v.err}</p>}<div className="mono inline-flex h-[44px] items-center gap-3 rounded-[12px] border px-5 text-[14px] border-[var(--line)] bg-[var(--bg-2)]"><span className="flex h-4 items-center gap-[3px]">{[6, 10, 14, 8].map((h, i) => <span key={i} className="block w-[3px] rounded-full bg-current" style={{ height: r.listening || r.busy ? h : 6 }}></span>)}</span>{status}</div>
           <div className="mono mt-3 h-5 text-[12px] text-[var(--muted)]">{r.messages.length ? <button onClick={() => { r.reset(); setTyping(false); }} className="underline underline-offset-4">start over</button> : ""}</div>
-          <div className="mt-6"><div className="flex items-end justify-center gap-7"><RoundBtn kind="type" label="Type" active={typing} onClick={() => { setTyping(true); setTimeout(() => inp.current?.focus(), 30); }} /><RoundBtn kind="call" label={r.listening ? "Listening" : "Call Claw"} active={r.listening} onClick={() => { if (!r.call()) { setTyping(true); setTimeout(() => inp.current?.focus(), 30); } }} /><span className="w-[58px]"></span></div></div>
+          <div className="mt-6"><div className="flex items-end justify-center gap-7"><RoundBtn kind="type" label="Type" active={typing} onClick={() => { setTyping(true); setTimeout(() => inp.current?.focus(), 30); }} /><RoundBtn kind="call" label={v.state !== "off" && v.state !== "error" ? "Hang up" : r.listening ? "Listening" : "Call Claw"} active={(v.state !== "off" && v.state !== "error") || r.listening} onClick={() => { if (v.state !== "off" && v.state !== "error") return v.stop(); v.start().catch(() => { if (!r.call()) { setTyping(true); setTimeout(() => inp.current?.focus(), 30); } }); }} /><span className="w-[58px]"></span></div></div>
         </section>
         <section className="flex min-h-0 flex-col gap-5">
           <div className="relative flex min-h-[260px] flex-1 flex-col lg:min-h-0"><div className="flex max-h-[52vh] min-h-0 flex-1 flex-col gap-3 overflow-y-auto overscroll-contain pb-2 pr-1 pt-8 [mask-image:linear-gradient(to_bottom,transparent,#000_48px)] lg:max-h-none">

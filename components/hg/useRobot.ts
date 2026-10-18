@@ -10,14 +10,15 @@ export function useRobot() {
   useEffect(() => { const s = sessionStorage.getItem("hg_robot"); if (s) { const j = JSON.parse(s); setMessages(j.messages ?? []); setDraftId(j.draftId ?? null); setUi(j.ui ?? {}); } }, []);
   useEffect(() => { sessionStorage.setItem("hg_robot", JSON.stringify({ messages, draftId, ui })); }, [messages, draftId, ui]);
   function speak(t: string) { if (!voice || typeof speechSynthesis === "undefined") return; speechSynthesis.cancel(); speechSynthesis.speak(new SpeechSynthesisUtterance(t.replace(/https?:\/\/\S+/g, "the link").slice(0, 400))); }
-  async function send(text: string, confirmActionId?: string) {
+  async function send(text: string, confirmActionId?: string): Promise<string> {
     const next = text ? [...messages, { role: "user" as const, content: text }] : messages;
     setMessages(next); setBusy(true); setPending(null);
     try {
       const r = await fetch("/api/robot", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ messages: next, draftId, confirmed: !!confirmActionId, confirmActionId }) }).then(r => r.json());
       const reply = r.reply ?? r.error ?? "…"; setMessages([...next, { role: "assistant", content: reply }]); speak(reply);
       if (r.draftId !== undefined) setDraftId(r.draftId); if (r.ui) setUi(r.ui); setPending(r.pending ?? null);
-    } catch (e: any) { setMessages([...next, { role: "assistant", content: "Network error, try again." }]); } finally { setBusy(false); }
+      return reply;
+    } catch { setMessages([...next, { role: "assistant", content: "Network error, try again." }]); return "Network error, try again."; } finally { setBusy(false); }
   }
   const [gen, setGen] = useState<string | null>(null);
   async function genCall(label: string, init: RequestInit) {

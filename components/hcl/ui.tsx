@@ -1,6 +1,6 @@
 "use client";
 import { useEffect, useState } from "react";
-export const ipfsImg = (cid?: string | null) => cid ? `https://ipfs.io/ipfs/${cid}` : undefined;
+export const ipfsImg = (cid?: string | null) => cid ? `/api/ipfs/${cid}` : undefined;
 export const short = (s?: string | null, n = 4) => s ? `${s.slice(0, n)}…${s.slice(-n)}` : "";
 export const sol = (n: number, d = 4) => `${(+n).toFixed(d).replace(/0+$/, "").replace(/\.$/, "")} SOL`;
 export const solscan = (sig: string, kind = "tx") => `https://solscan.io/${kind}/${sig}?cluster=devnet`;
@@ -11,7 +11,7 @@ export function usePoll<T>(url: string, ms: number, init: T): [T, () => void] {
   return [d, () => setK(x => x + 1)];
 }
 export function Countdown({ to }: { to: string }) {
-  const [now, setNow] = useState(Date.now()); useEffect(() => { const id = setInterval(() => setNow(Date.now()), 1000); return () => clearInterval(id); }, []);
+  const [now, setNow] = useState(() => Date.now()); useEffect(() => { const id = setInterval(() => setNow(Date.now()), 1000); return () => clearInterval(id); }, []);
   const s = Math.max(0, (+new Date(to) - now) / 1000); const d = (s / 86400) | 0, h = ((s % 86400) / 3600) | 0, m = ((s % 3600) / 60) | 0, x = (s % 60) | 0;
   const p = (n: number) => String(n).padStart(2, "0");
   return <span className="mono tabular-nums">{d ? `${d}d ` : ""}{p(h)}:{p(m)}:{p(x)}</span>;

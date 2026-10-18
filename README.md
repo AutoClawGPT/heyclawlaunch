@@ -113,7 +113,7 @@ Devnet tests live in `scripts/devnet/` (multi-user launch → claim → withdraw
 | `UPSTASH_REDIS_REST_URL / UPSTASH_REDIS_REST_TOKEN` | Leaderboard sorted sets + live feeds |
 | `DEEPGRAM_API_KEY` | Voice agent |
 | `TELEGRAM_BOT_TOKEN / TELEGRAM_BOT_USERNAME` | Telegram bot |
-| `JUP_API_KEY / JUP_MOCK` | Jupiter swaps (mainnet only) |
+| `JUP_API_KEY` | Jupiter swaps (mainnet only) |
 | `BOT_RESERVE_SOL` | Launch-wallet reserve the volume bots never touch (default 1) |
 
 ## Safety

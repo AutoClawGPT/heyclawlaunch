@@ -1,0 +1,3 @@
+https://heyclawlaunch.vercel.app
+MCP: https://heyclawlaunch.vercel.app/mcp
+Wallet MCP: https://heyclawlaunch.vercel.app/mcp/wallet

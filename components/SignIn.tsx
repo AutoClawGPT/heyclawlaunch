@@ -20,7 +20,7 @@ export default function SignIn({ xEnabled, returnTo }: { xEnabled: boolean; retu
       }
       const r = await fetch("/api/siws/verify", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ address: out.account.address, signedMessage: b64(out.signedMessage), signature: b64(out.signature) }) });
       if (!r.ok) throw new Error((await r.json()).error ?? "sign-in failed");
-      location.href = returnTo;
+      window.location.assign(returnTo);
     } catch (e: any) { setErr(e.message ?? String(e)); } finally { setBusy(false); }
   }
   return (

@@ -1,0 +1,15 @@
+{
+  "$schema": "https://openapi.vercel.sh/vercel.json",
+  "framework": "nextjs",
+  "installCommand": "pnpm install --frozen-lockfile",
+  "buildCommand": "pnpm build",
+  "crons": [{ "path": "/api/cron", "schedule": "5 0 * * *" }],
+  "functions": {
+    "app/api/robot/route.ts": { "maxDuration": 60 },
+    "app/api/gen/route.ts": { "maxDuration": 60 },
+    "app/mcp/route.ts": { "maxDuration": 60 },
+    "app/mcp/wallet/route.ts": { "maxDuration": 60 },
+    "app/api/templates/route.ts": { "maxDuration": 60 },
+    "app/api/bots/route.ts": { "maxDuration": 60 }
+  }
+}

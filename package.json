@@ -70,6 +70,7 @@
     "zod": "4"
   },
   "devDependencies": {
+    "@deepgram/sdk": "^5.15.0",
     "@modelcontextprotocol/inspector": "^2.11.0",
     "@pollinations/cli": "^0.1.53",
     "@tailwindcss/postcss": "^4.3.3",

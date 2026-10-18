@@ -165,6 +165,9 @@ importers:
         specifier: '4'
         version: 4.6.7
     devDependencies:
+      '@deepgram/sdk':
+        specifier: ^5.15.0
+        version: 5.15.0(bufferutil@4.1.0)(utf-8-validate@6.0.6)
       '@modelcontextprotocol/inspector':
         specifier: ^2.11.0
         version: 2.11.0(@types/node@20.19.43)(@types/react@19.3.0)(bufferutil@4.1.0)(esbuild@0.28.2)(jiti@2.7.0)(react-dom@19.3.0(react@19.3.0))(tsx@4.23.15)(utf-8-validate@6.0.6)
@@ -467,6 +470,10 @@ packages:
     engines: {node: '>=10'}
     peerDependencies:
       '@solana/web3.js': ^1.69.0
+
+  '@deepgram/sdk@5.15.0':
+    resolution: {integrity: sha512-LAmMdOHVfvyJ8hz+YI4aK+kPmfqdtmMl7O8Q63lDWVyuHx9vEyoyt+W9y3vxxaVxdOmn4zFmGYjntbNVh/KyqA==}
+    engines: {node: '>=18.0.0'}
 
   '@dimforge/rapier3d-compat@0.12.0':
     resolution: {integrity: sha512-uekIGetywIgopfD97oDL5PfeezkFpNhwlzlaEYNOA0N6ghdsOvh/HYjSMek5Q2O1PYvRSDFcqFVJl4r4ZBwOow==}
@@ -5728,6 +5735,13 @@ snapshots:
       '@solana/web3.js': 1.99.0(bufferutil@4.1.0)(typescript@5.9.3)(utf-8-validate@6.0.6)
       bn.js: 5.2.2
       buffer-layout: 1.2.2
+
+  '@deepgram/sdk@5.15.0(bufferutil@4.1.0)(utf-8-validate@6.0.6)':
+    dependencies:
+      ws: 8.22.0(bufferutil@4.1.0)(utf-8-validate@6.0.6)
+    transitivePeerDependencies:
+      - bufferutil
+      - utf-8-validate
 
   '@dimforge/rapier3d-compat@0.12.0': {}
 

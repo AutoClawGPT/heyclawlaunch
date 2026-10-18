@@ -7,12 +7,12 @@ const FILTERS = [["all", "All"], ["new", "New"], ["graduating", "About to gradua
 const ICON: Record<string, string> = { volume: "📈", bump: "⏫", buy: "🟢", sell: "🔻", holders: "👥" };
 export default function BotsClient() {
   const [filter, setFilter] = useState("all");
-  const [d, reload] = usePoll<any>(`/api/bots?filter=${filter}`, 8000, null);
+  const [d, reload] = usePoll<any>(`/api/bots?filter=${filter}${typeof window !== "undefined" && new URLSearchParams(window.location.search).get("mint") ? `&mint=${new URLSearchParams(window.location.search).get("mint")}` : ""}`, 8000, null);
   const [feed] = usePoll<any>(`/api/bots?what=feed`, 2500, { feed: [] });
   const [coin, setCoin] = useState<any>(null); const [kind, setKind] = useState("volume"); const [pkg, setPkg] = useState("");
   const [preview, setPreview] = useState(""); const [busy, setBusy] = useState(false); const [err, setErr] = useState(""); const [ok, setOk] = useState("");
   useEffect(() => { setPreview(""); setErr(""); setOk(""); }, [coin, kind, pkg]);
-  useEffect(() => { const m = new URLSearchParams(location.search).get("mint"); if (m && d?.markets && !coin) { const f = d.markets.find((x: any) => x.mint === m); if (f) setCoin(f); } }, [d?.markets]);
+  useEffect(() => { const m = new URLSearchParams(location.search).get("mint"); if (m && d?.markets && !coin) { const f = d.focus ?? d.markets.find((x: any) => x.mint === m); if (f) setCoin(f); } }, [d?.markets, d?.focus]);
   useEffect(() => { if (d?.kinds?.[kind]) setPkg(d.kinds[kind].pkgs[0].id); }, [kind, d?.kinds]);
   async function order(confirm: boolean) {
     setBusy(true); setErr("");

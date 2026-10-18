@@ -4,7 +4,7 @@ import { usePathname } from "next/navigation";
 import { motion } from "framer-motion";
 import ConnectWallet from "./ConnectWallet";
 const NAV: [string, string][] = [["/explore", "Explore"], ["/launch", "Launch"], ["/agents", "Agents"], ["/community", "Community"], ["/bots", "Bots"], ["/leaderboard", "Leaderboard"], ["/claim", "Claim"], ["/scanner", "Scanner"], ["/docs", "Docs"]];
-const MORE: [string, string][] = [["/templates", "Templates"], ["/connect", "Connect"], ["/skill", "Agent skill"]];
+const MORE: [string, string][] = [["/dashboard", "Dashboard"], ["/templates", "Templates"], ["/connect", "Connect"], ["/skill", "Agent skill"]];
 const base = "shrink-0 rounded-[8px] px-3 py-1.5 transition-colors hover:text-[var(--fg)] ";
 const on = "text-[var(--fg)]";
 export function Logo() {

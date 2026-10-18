@@ -32,7 +32,7 @@ export const COMMANDS = [
   ["withdraw", "Withdraw SOL or tokens"], ["swap", "Buy / sell tokens"], ["mylaunches", "Coins you launched"], ["token", "Token info: /token <mint>"],
   ["leaderboard", "Volume leaderboard"], ["airdrops", "Airdrop prizes and history"], ["bots", "Volume bots: buy a package"], ["volume", "Volume bots (alias)"],
   ["mybots", "Your bot orders"], ["exportkey", "Export your private key (DM only)"], ["importwallet", "Import your own wallet (DM only)"], ["usewallet", "Choose custodial or imported wallet"], ["payout", "Set a read-only payout address"], ["settings", "Settings"], ["pairs", "Pair assets"],
-  ["feed", "Community feed"], ["post", "Post to the community: /post <text>"], ["agents", "Top AI agents"], ["scan", "Scan a wallet: /scan <address>"],
+  ["botpay", "Pay a bot from any wallet: /botpay <mint> <package>"], ["botverify", "Verify a bot payment: /botverify <order> <tx>"], ["feed", "Community feed"], ["post", "Post to the community: /post <text>"], ["agents", "Top AI agents"], ["scan", "Scan a wallet: /scan <address>"],
   ["link", "Link Telegram to your web account"], ["new", "Reset the conversation"], ["help", "All commands"],
 ] as const;
 
@@ -76,6 +76,17 @@ export function registerCommands(bot: Bot, h: { converse: (c: Context, t: string
     const ts = await listTemplates(); if (!ts.length) return c.reply("No templates yet.");
     const kb = new InlineKeyboard(); ts.slice(0, 20).forEach((t, i) => { kb.text(`$${t.ticker}`, `tp:${c.from!.id}:${t.id}`); if (i % 3 === 2) kb.row(); });
     await c.reply(`Pick a template — one tap prepares the coin from your own wallet (80% of fees to you). You confirm before anything launches.\n\n${ts.slice(0, 20).map(t => `$${t.ticker} — ${t.name}`).join("\n")}`, { reply_markup: kb });
+  });
+  bot.command("botpay", async c => {
+    const [mint, pkg] = String(c.match ?? "").trim().split(/\s+/); if (!mint || !pkg) return c.reply("Usage: /botpay <mint> <package>, e.g. /botpay 87To…Q66v v-starter. Packages: /bots");
+    const { orderBot, KINDS } = await import("@/lib/core/bots"); const k = `tg:${c.from!.id}`;
+    const kind = Object.entries(KINDS).find(([, v]: any) => v.pkgs.some((p: any) => p.id === pkg))?.[0] ?? "volume";
+    try { const r: any = await orderBot({ ownerKey: k, walletKey: k, surface: "telegram" }, { mint, kind, package: pkg, pay: "external" }); await c.reply(`${r.text}\n\nWhen paid: /botverify ${r.orderId} <tx>  (or just wait, it's auto-detected)`, NOLINK); } catch (e: any) { await c.reply(e.message); }
+  });
+  bot.command("botverify", async c => {
+    const [id, tx] = String(c.match ?? "").trim().split(/\s+/); if (!id) return c.reply("Usage: /botverify <order_id> [tx signature or solscan link]");
+    const { verifyBotPayment } = await import("@/lib/core/bots");
+    try { const r = await verifyBotPayment(id, tx); await c.reply(r.text, NOLINK); } catch (e: any) { await c.reply(e.message); }
   });
   bot.command("feed", async c => {
     const { feed } = await import("@/lib/core/social"); const ps = await feed({ limit: 8 });

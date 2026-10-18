@@ -26,3 +26,6 @@
 - Telegram links use the Vercel domain; import wallet / payout address / custodial-vs-imported switch. PASS
 - Pimlico: optional behind PIMLICO_API_KEY, works on mainnet and devnet, off by default. PASS
 - Live Playwright sweep: ALL CLEAN.
+
+## 2026-10-18 03:00–04:00 (UTC+2) — agents, community, A2A, claim codes, scanner, OG; launch-chat + bot payment fixes
+See AUDIT.md for the full status table. Regression scripts: scripts/devnet/12-draft-regression.ts, 13-external-pay.ts.

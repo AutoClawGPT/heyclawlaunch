@@ -124,7 +124,7 @@ Fees: 80% to your fee wallet, 20% platform, split on chain. Max launches per day
 \`\`\`bash
 curl -s -X POST $T/volume_bot -H "Authorization: Bearer $KEY" -H "content-type: application/json" -d '{}'   # menu
 curl -s -X POST $T/volume_bot -H "Authorization: Bearer $KEY" -H "content-type: application/json" \\
-  -d '{"mint":"<MINT>","kind":"volume","package":"v-starter"}'                 # preview
+  -d '{"mint":"<MINT>","kind":"volume","package":"v-02"}'                 # preview
 # same body + "confirm": true → pays from your wallet and starts real trades
 \`\`\`
 

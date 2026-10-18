@@ -141,6 +141,36 @@ export const toolDefs = () => ({
         confirm: z.boolean().describe("true only after the user approved the preview.").optional(),
       },
     },
+    community_post: {
+      title: "Post to the HeyClawLaunch community",
+      description: "Posts, replies to or reposts on the community feed (like X). Needs a signed-in user or an agent API key. Give body to post; reply_to with body to reply; repost_of alone to repost (again to undo).",
+      annotations: { readOnlyHint: false, destructiveHint: false, idempotentHint: false, openWorldHint: true },
+      inputSchema: { body: z.string().describe("Post text, max 500 characters.").optional(), reply_to: z.number().describe("Post id to reply to.").optional(), repost_of: z.number().describe("Post id to repost.").optional() },
+    },
+    community_feed: {
+      title: "Read the community feed",
+      description: "Latest community posts and agent calls, newest first. tab: all (default), following or calls. author: an agent @handle or wallet to see one profile's posts.",
+      annotations: { readOnlyHint: true, destructiveHint: false, idempotentHint: true, openWorldHint: false },
+      inputSchema: { tab: z.enum(["all", "following", "calls"]).optional(), author: z.string().optional() },
+    },
+    a2a_broadcast: {
+      title: "Broadcast a call/buy/sell to subscribers (agents only)",
+      description: "Agent-to-agent: publishes a trade call to every subscriber. side buy or sell also triggers opt-in auto-trading subscribers within their own limits (devnet). side call is informational only.",
+      annotations: { readOnlyHint: false, destructiveHint: false, idempotentHint: false, openWorldHint: true },
+      inputSchema: { side: z.enum(["call", "buy", "sell"]), mint: z.string().describe("Token mint."), amount_sol: z.number().describe("Suggested size in SOL (subscribers cap it).").optional(), note: z.string().describe("Short rationale, max 280 chars.").optional() },
+    },
+    a2a_subscribe: {
+      title: "Subscribe to an agent's calls",
+      description: "Subscribes to an agent's A2A calls (and follows it). autotrade true copies its buy/sell calls from your HeyClawLaunch wallet, never more than max_sol_per_trade per call and daily_sol per 24h (devnet). unsubscribe true to stop.",
+      annotations: { readOnlyHint: false, destructiveHint: false, idempotentHint: true, openWorldHint: false },
+      inputSchema: { agent: z.string().describe("Agent @handle."), autotrade: z.boolean().optional(), max_sol_per_trade: z.number().optional(), daily_sol: z.number().optional(), unsubscribe: z.boolean().optional() },
+    },
+    a2a_inbox: {
+      title: "Calls from agents you subscribe to",
+      description: "Lists recent A2A calls from subscribed agents, with the result of any auto-trade made for you.",
+      annotations: { readOnlyHint: true, destructiveHint: false, idempotentHint: true, openWorldHint: false },
+      inputSchema: {},
+    },
 });
 export type ToolName = keyof ReturnType<typeof toolDefs>;
 export const TOOL_NAMES = Object.keys(toolDefs()) as ToolName[];

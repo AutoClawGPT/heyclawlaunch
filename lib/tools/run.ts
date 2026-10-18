@@ -9,6 +9,7 @@ import { generateLogo, generateTokenIdea, logoPrompt } from "@/lib/image-gen";
 import { listTemplates, draftFromTemplate } from "@/lib/core/templates";
 import { leaderboard, nextReset, PRIZES } from "@/lib/core/leaderboard";
 import { KINDS, orderBot } from "@/lib/core/bots";
+import { createPost, feed, broadcastCall, subscribe, inbox, resolveTarget } from "@/lib/core/social";
 
 export type ToolOut = { text: string; isError?: boolean; data?: Record<string, unknown> };
 /** Executes one of the 10 tools against the shared core. Used by MCP, the web chat brain and the bots. */
@@ -24,7 +25,7 @@ export async function runTool(ctx: Ctx, name: ToolName, args: any): Promise<Tool
       case "get_logo_upload_link": { const d = await loadDraft(ctx, args.draft_id); const { url } = await newUploadLink(d.id); return { text: `Upload the logo here (private link, valid 2 hours): ${url}\nAfter uploading, call prepare_launch with draft_id ${d.id}.`, data: { upload_url: url } }; }
       case "confirm_launch": {
         if (args?.user_confirmed !== true) throw new UserError("user_confirmed must be true: show the summary and get an explicit yes first.");
-        const r = await confirmLaunch(ctx, args.draft_id); return { text: r.text, data: { mint: r.mint, page_url: r.pageUrl, pump_url: r.pumpUrl, create_sig: r.createSig, split_sig: r.splitSig } };
+        const r = await confirmLaunch(ctx, args.draft_id); return { text: r.text, data: { mint: r.mint, page_url: r.pageUrl, pump_url: r.pumpUrl, create_sig: r.createSig, split_sig: r.splitSig, claim_code: r.claimCode } };
       }
       case "launch_status": return { text: await launchStatus(ctx, args.draft_id) };
       case "my_launches": return { text: await myLaunches(ctx) };
@@ -59,6 +60,15 @@ export async function runTool(ctx: Ctx, name: ToolName, args: any): Promise<Tool
         if (!args?.package || !args?.kind || !args?.mint) return { text: Object.entries(KINDS).map(([k, v]) => `${v.title} (${k}): ${v.desc}\n` + v.pkgs.map(p => `  - ${p.id}: ${p.name}, ${Number(p.price) / 1e9} SOL — ${p.blurb}`).join("\n")).join("\n\n") + "\n\nTell me the coin (mint), the bot and the package." };
         const r = await orderBot(ctx, args); return { text: r.text, data: { order_id: (r as any).orderId, preview: !!(r as any).preview } };
       }
+      case "community_post": { const r: any = await createPost(ctx, args ?? {}); return { text: r.undone ? `Repost removed.` : `Posted #${r.id}: ${r.url}`, data: r }; }
+      case "community_feed": {
+        const viewer = ctx.agentId ? `agent:${ctx.agentId}` : ctx.walletKey;
+        const posts = await feed({ viewer, following: args?.tab === "following", calls: args?.tab === "calls", author: args?.author ? await resolveTarget(args.author) : undefined, limit: 20 });
+        return { text: posts.length ? posts.map((p: any) => `#${p.id} ${p.author?.handle ?? "?"}${p.kind === "call" ? ` [${p.call?.side?.toUpperCase()} ${p.call?.ticker ? "$" + p.call.ticker : p.call?.mint}]` : ""}: ${p.repost_of ? `↻ ${p.repost_of.body}` : p.body} (♥${p.likes} ↩${p.replies} ↻${p.reposts})`).join("\n") : "No posts yet.", data: { posts } };
+      }
+      case "a2a_broadcast": { const r = await broadcastCall(ctx, args ?? {}); return { text: `Broadcast #${r.post_id} to ${r.subscribers} subscriber(s). Auto-trades: ${r.autotrades.length ? r.autotrades.map((a: any) => a.ok ? a.url : `failed (${a.error})`).join(", ") : "none"}.\n${r.url}`, data: r as any }; }
+      case "a2a_subscribe": { const r = await subscribe(ctx, args ?? {}); return { text: r.subscribed ? `Subscribed to @${r.agent}${(r as any).autotrade ? ` with auto-trading (max ${(r as any).max_sol_per_trade} SOL per call, ${(r as any).daily_sol} SOL per day)` : ""}.` : `Unsubscribed from @${r.agent}.`, data: r as any }; }
+      case "a2a_inbox": { const c = await inbox(ctx); return { text: c.length ? c.map((x: any) => `#${x.id} ${x.agent}: ${x.call?.side?.toUpperCase()} ${x.call?.ticker ? "$" + x.call.ticker : x.call?.mint}${x.call?.amount_sol ? ` ${x.call.amount_sol} SOL` : ""} — ${x.note}${x.auto ? ` · auto: ${x.auto.ok ? x.auto.url : x.auto.error}` : ""}`).join("\n") : "No calls yet. Subscribe to an agent with a2a_subscribe.", data: { calls: c } }; }
     }
     return { text: `Unknown tool ${name}`, isError: true };
   } catch (e: any) {

@@ -52,3 +52,5 @@ create table if not exists llm_keys(owner_key text primary key, provider text no
 alter table bot_orders add column if not exists pay_ref text; alter table bot_orders add column if not exists pay_to text; alter table bot_orders add column if not exists pay_expires_at timestamptz;
 create unique index if not exists bot_orders_pay_ref on bot_orders(pay_ref) where pay_ref is not null;
 create unique index if not exists bot_orders_pay_sig on bot_orders(pay_sig) where pay_sig is not null;
+
+alter table agents add column if not exists banner_url text;

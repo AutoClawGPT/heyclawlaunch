@@ -15,7 +15,7 @@ export const hash = (s: string) => createHash("sha256").update(s).digest("hex");
 export const agentKey = (id: string) => `agent:${id}`;
 const HANDLE = /^[a-z0-9_]{3,24}$/;
 
-export type Agent = { id: string; handle: string; name: string; bio: string | null; avatar_url: string | null; owner_user_id: string | null; wallet_mode: "custodial" | "imported" | "payout"; wallet_address: string | null; payout_address: string | null; verify_code: string; x_post_url: string | null; x_handle: string | null; verify_status: string; autotrade: boolean; created_at: string };
+export type Agent = { id: string; handle: string; name: string; bio: string | null; avatar_url: string | null; banner_url: string | null; owner_user_id: string | null; wallet_mode: "custodial" | "imported" | "payout"; wallet_address: string | null; payout_address: string | null; verify_code: string; x_post_url: string | null; x_handle: string | null; verify_status: string; autotrade: boolean; created_at: string };
 
 async function imageOk(u: string) { try { const r = await fetch(u.replace(/^ipfs:\/\//, "https://ipfs.io/ipfs/"), { method: "GET", signal: AbortSignal.timeout(6000) }); return r.ok && (r.headers.get("content-type") ?? "").startsWith("image/"); } catch { return false; } }
 function validAddress(a: string) { try { return PublicKey.isOnCurve(new PublicKey(a).toBytes()) || true; } catch { return false; } }
@@ -29,7 +29,11 @@ export async function registerAgent(b: any, owner?: Ctx) {
   const bio = b?.bio ? String(b.bio).slice(0, 280) : null;
   let avatar = b?.avatar_url ? String(b.avatar_url) : null;
   if (avatar && !/^https:\/\/|^ipfs:\/\//.test(avatar)) throw new UserError("avatar_url must be https:// or ipfs://.");
-  const mode = (b?.wallet?.mode ?? "custodial") as string;
+  let banner = b?.banner_url ? String(b.banner_url) : null;
+  if (banner && (!/^https:\/\//.test(banner) || !(await imageOk(banner)))) banner = null;
+  if (b?.wallet === "generate") b.wallet = { mode: "custodial" };
+  else if (typeof b?.wallet === "string") b.wallet = { mode: "payout", address: b.wallet };
+  const mode = (b?.wallet?.mode === "generate" ? "custodial" : b?.wallet?.mode ?? "custodial") as string;
   if (!["custodial", "imported", "payout"].includes(mode)) throw new UserError('wallet.mode must be "custodial", "imported" or "payout".');
   const [taken] = await sql`select 1 from agents where handle=${handle}`; if (taken) throw new UserError(`@${handle} is taken. Pick another handle.`);
   const id = crypto.randomUUID(); const key = agentKey(id);
@@ -44,13 +48,15 @@ export async function registerAgent(b: any, owner?: Ctx) {
   if (mode !== "payout" && b?.wallet?.address) { payout = String(b.wallet.address).trim(); if (!validAddress(payout)) throw new UserError("wallet.address must be a Solana address."); }
   if (avatar && !(await imageOk(avatar))) avatar = null;
   if (!avatar) avatar = `${cfg.appUrl}/api/og?type=avatar&seed=${handle}`;
-  await sql`insert into agents(id,handle,name,bio,avatar_url,owner_user_id,wallet_mode,wallet_address,payout_address,api_key_hash,verify_code) values(${id},${handle},${name},${bio},${avatar},${owner?.userId ?? null},${mode},${walletAddress},${payout},${hash(apiKey)},${verifyCode})`;
+  await sql`insert into agents(id,handle,name,bio,avatar_url,banner_url,owner_user_id,wallet_mode,wallet_address,payout_address,api_key_hash,verify_code) values(${id},${handle},${name},${bio},${avatar},${banner},${owner?.userId ?? null},${mode},${walletAddress},${payout},${hash(apiKey)},${verifyCode})`;
   await sql`insert into audit_log(actor,action,detail) values(${key},'agent_register',${sql.json({ handle, mode })})`;
   return {
     agent_id: id, handle, profile_url: `${cfg.appUrl}/agents/${handle}`,
     api_key: apiKey, wallet_mode: mode, wallet_address: walletAddress, payout_address: payout, ...(secret ? { wallet_secret_key: secret } : {}),
-    verify: { code: verifyCode, how: `Post on X a message containing ${verifyCode}, then POST ${cfg.appUrl}/api/agents/verify {"post_url":"https://x.com/<you>/status/<id>"} with your bearer key. Optional.` },
+    bearer_token: `Bearer ${apiKey}`, mcp_url: `${cfg.appUrl}/mcp`,
+    verify: { code: verifyCode, tweet_intent: `https://x.com/intent/post?text=${encodeURIComponent(`Verifying my agent @${handle} on HeyClawLaunch ${verifyCode} ${cfg.appUrl}/agents/${handle}`)}`, how: `Post on X a message containing ${verifyCode}, then POST ${cfg.appUrl}/api/agents/verify {"post_url":"https://x.com/<you>/status/<id>"} with your bearer key. Optional.` },
     mcp: { url: `${cfg.appUrl}/mcp`, header: "Authorization: Bearer <api_key>" },
+    show_user: "Show ALL of these values to your user in chat, in full, untruncated: api_key, bearer_token, mcp_url, wallet_address" + (secret ? ", wallet_secret_key" : "") + ". Do NOT only save them on your own machine.",
     save_these: "SAVE THESE NOW. api_key" + (secret ? " and wallet_secret_key are" : " is") + " shown only once and cannot be recovered. Store them in your secret store, never in public logs or posts.",
   };
 }
@@ -83,6 +89,10 @@ export async function verifyAgent(ctx: Ctx, postUrl: string) {
     const r = await fetch(`https://publish.twitter.com/oembed?omit_script=1&url=${encodeURIComponent(m[0])}`, { signal: AbortSignal.timeout(8000) });
     if (r.ok) { const j: any = await r.json(); if (String(j.html ?? "").includes(a.verify_code)) { status = "verified"; note = "Verified."; } else { status = "failed"; note = `The post doesn't contain ${a.verify_code}.`; } }
   } catch {}
+  if (status === "pending") try {
+    const r = await fetch(`https://cdn.syndication.twimg.com/tweet-result?id=${m[2]}&token=a`, { signal: AbortSignal.timeout(8000) });
+    if (r.ok) { const j: any = await r.json(); if (String(j.text ?? "").includes(a.verify_code)) { status = "verified"; note = "Verified."; } else if (j.text) { status = "failed"; note = `The post doesn't contain ${a.verify_code}.`; } }
+  } catch {}
   await sql`update agents set x_post_url=${m[0]}, x_handle=${m[1]}, verify_status=${status} where id=${ctx.agentId}`;
   return { status, x_handle: m[1], note };
 }
@@ -92,13 +102,14 @@ export async function updateAgent(ctx: Ctx, b: any) {
   if (b.bio != null) await sql`update agents set bio=${String(b.bio).slice(0, 280)} where id=${ctx.agentId}`;
   if (b.name) await sql`update agents set name=${String(b.name).slice(0, 48)} where id=${ctx.agentId}`;
   if (b.avatar_url) { if (!/^https:\/\//.test(b.avatar_url)) throw new UserError("avatar_url must be https://."); if (!(await imageOk(b.avatar_url))) throw new UserError("avatar_url must point to a reachable image."); await sql`update agents set avatar_url=${b.avatar_url} where id=${ctx.agentId}`; }
+  if (b.banner_url) { if (!/^https:\/\//.test(b.banner_url) || !(await imageOk(b.banner_url))) throw new UserError("banner_url must be a reachable https:// image."); await sql`update agents set banner_url=${b.banner_url} where id=${ctx.agentId}`; }
   if (b.payout_address) { if (!validAddress(b.payout_address)) throw new UserError("payout_address must be a Solana address."); await sql`update agents set payout_address=${b.payout_address} where id=${ctx.agentId}`; }
   if (b.autotrade != null) await sql`update agents set autotrade=${!!b.autotrade} where id=${ctx.agentId}`;
   return agentPublic((await sql`select * from agents where id=${ctx.agentId}`)[0] as Agent);
 }
 export async function rotateKey(ctx: Ctx) { if (!ctx.agentId) throw new UserError("Use your agent API key.", 401); const k = `hcla_${randomBytes(24).toString("base64url")}`; await sql`update agents set api_key_hash=${hash(k)} where id=${ctx.agentId}`; return { api_key: k, save_these: "New key shown once. The old key stopped working." }; }
 
-export function agentPublic(a: Agent) { return { id: a.id, handle: a.handle, name: a.name, bio: a.bio, avatar_url: a.avatar_url, wallet_mode: a.wallet_mode, wallet_address: a.wallet_address, payout_address: a.payout_address, x_handle: a.x_handle, verified: a.verify_status === "verified", verify_status: a.verify_status, autotrade: a.autotrade, created_at: a.created_at, profile_url: `${cfg.appUrl}/agents/${a.handle}` }; }
+export function agentPublic(a: Agent) { return { id: a.id, handle: a.handle, name: a.name, bio: a.bio, avatar_url: a.avatar_url, banner_url: a.banner_url, wallet_mode: a.wallet_mode, wallet_address: a.wallet_address, payout_address: a.payout_address, x_handle: a.x_handle, verified: a.verify_status === "verified", verify_status: a.verify_status, autotrade: a.autotrade, created_at: a.created_at, profile_url: `${cfg.appUrl}/agents/${a.handle}` }; }
 
 /** Stats for a profile: launches, trades, realized PnL (sells-buys), followers. */
 export async function agentStats(a: Agent) {

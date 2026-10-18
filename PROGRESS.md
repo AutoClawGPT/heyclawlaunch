@@ -18,3 +18,11 @@
 - Deepgram Voice Agent: flux-general-en v2 listen, flux-cole-en v2 speak, single client-side function `heyclaw` -> our brain (/api/robot) — E2E tested (FunctionCallRequest -> brain -> spoken reply, 1.5 MB audio)
 - Charts: tokens without trades show the pump.fun starting price instead of an empty state
 - Live Playwright sweep (15 pages x 2 widths): 28/30 clean; IPFS proxy 404s fixed by racing gateways
+
+## 2026-10-18 — bug report fixes (live-verified)
+- Token page: USD mcap at mainnet scale (devnet curve ×100, labelled), price, curve %, holders, 24h vol, live chart + trade feed. PASS
+- Volume bots: token page "Boost" → /bots?mint= now opens any coin (API returns `focus`); browser test with a signed-in SIWS user paid 0.2 SOL and the worker traded for real. Telegram pay & start also passes. PASS
+- Connector URL button shows errors; the MCP SDK lists 16 tools on /mcp and /mcp/wallet. PASS
+- Telegram links use the Vercel domain; import wallet / payout address / custodial-vs-imported switch. PASS
+- Pimlico: optional behind PIMLICO_API_KEY, works on mainnet and devnet, off by default. PASS
+- Live Playwright sweep: ALL CLEAN.

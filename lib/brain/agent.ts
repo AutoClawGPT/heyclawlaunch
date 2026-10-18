@@ -7,6 +7,7 @@ import { toolDefs, type ToolName } from "@/lib/tools/defs";
 import { runTool, type ToolOut } from "@/lib/tools/run";
 import { sha } from "@/lib/core/drafts";
 import { pickModel } from "./registry";
+import { ownerModel } from "@/lib/core/llm-keys";
 import { systemPrompt } from "./prompt";
 
 export type ChatMsg = { role: "user" | "assistant"; content: string };
@@ -39,7 +40,7 @@ export async function executePending(ctx: Ctx, id: string): Promise<{ out: ToolO
 }
 
 export async function runAgent(ctx: Ctx, messages: ChatMsg[], opts: { model?: string; draftId?: string | null; extraSystem?: string } = {}): Promise<AgentResult> {
-  const { id: modelId, model } = pickModel(opts.model);
+  const own = await ownerModel(ctx.walletKey ?? ctx.ownerKey).catch(() => null); const { id: modelId, model } = own ?? pickModel(opts.model);
   const lastUser = [...messages].reverse().find(m => m.role === "user")?.content ?? "";
   const userSaidYes = YES.test(lastUser);
   const calls: AgentResult["toolCalls"] = [];

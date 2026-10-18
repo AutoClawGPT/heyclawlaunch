@@ -32,6 +32,7 @@ export const COMMANDS = [
   ["withdraw", "Withdraw SOL or tokens"], ["swap", "Buy / sell tokens"], ["mylaunches", "Coins you launched"], ["token", "Token info: /token <mint>"],
   ["leaderboard", "Volume leaderboard"], ["airdrops", "Airdrop prizes and history"], ["bots", "Volume bots: buy a package"], ["volume", "Volume bots (alias)"],
   ["mybots", "Your bot orders"], ["exportkey", "Export your private key (DM only)"], ["importwallet", "Import your own wallet (DM only)"], ["usewallet", "Choose custodial or imported wallet"], ["payout", "Set a read-only payout address"], ["settings", "Settings"], ["pairs", "Pair assets"],
+  ["feed", "Community feed"], ["post", "Post to the community: /post <text>"], ["agents", "Top AI agents"], ["scan", "Scan a wallet: /scan <address>"],
   ["link", "Link Telegram to your web account"], ["new", "Reset the conversation"], ["help", "All commands"],
 ] as const;
 
@@ -75,6 +76,24 @@ export function registerCommands(bot: Bot, h: { converse: (c: Context, t: string
     const ts = await listTemplates(); if (!ts.length) return c.reply("No templates yet.");
     const kb = new InlineKeyboard(); ts.slice(0, 20).forEach((t, i) => { kb.text(`$${t.ticker}`, `tp:${c.from!.id}:${t.id}`); if (i % 3 === 2) kb.row(); });
     await c.reply(`Pick a template — one tap prepares the coin from your own wallet (80% of fees to you). You confirm before anything launches.\n\n${ts.slice(0, 20).map(t => `$${t.ticker} — ${t.name}`).join("\n")}`, { reply_markup: kb });
+  });
+  bot.command("feed", async c => {
+    const { feed } = await import("@/lib/core/social"); const ps = await feed({ limit: 8 });
+    await c.reply(ps.length ? `🗣 Community\n\n${ps.map((p: any) => `#${p.id} ${p.author?.name ?? "?"}${p.kind === "call" ? ` [${p.call?.side?.toUpperCase()} ${p.call?.ticker ? "$" + p.call.ticker : ""}]` : ""}: ${(p.repost_of && !p.body ? "↻ " + p.repost_of.body : p.body).slice(0, 160)}  ♥${p.likes}`).join("\n\n")}\n\n${cfg.appUrl}/community` : `No posts yet. /post <text> to start.\n${cfg.appUrl}/community`, NOLINK);
+  });
+  bot.command("post", async c => {
+    const t = String(c.match ?? "").trim(); if (!t) return c.reply("Usage: /post <text> (max 500 characters)");
+    const { createPost } = await import("@/lib/core/social"); const k = `tg:${c.from!.id}`;
+    try { const r: any = await createPost({ ownerKey: k, walletKey: k, surface: "telegram" }, { body: t }); await c.reply(`Posted #${r.id}: ${r.url}`, NOLINK); } catch (e: any) { await c.reply(e.message); }
+  });
+  bot.command("agents", async c => {
+    const { listAgents } = await import("@/lib/core/agents"); const as = await listAgents("volume", 10);
+    await c.reply(as.length ? `🤖 Top agents\n\n${as.map((a: any, i: number) => `${i + 1}. ${a.name} @${a.handle}${a.verified ? " ✓" : ""} — ${a.volume_sol.toFixed(3)} SOL vol · ${a.followers} followers`).join("\n")}\n\nRegister yours: ${cfg.appUrl}/skill.md` : `No agents yet. Register one: ${cfg.appUrl}/skill.md`, NOLINK);
+  });
+  bot.command("scan", async c => {
+    const w = String(c.match ?? "").trim(); if (!w) return c.reply("Usage: /scan <wallet address>");
+    const { scanWallet } = await import("@/lib/core/claims");
+    try { const d = await scanWallet(w); await c.reply(`🔎 ${w.slice(0, 4)}…${w.slice(-4)}\nLaunched: ${d.totals.launched}\nEarned: ${d.totals.earned_sol.toFixed(6)} SOL\nClaimable: ${d.totals.claimable_sol.toFixed(6)} SOL\nClaimed: ${d.totals.claimed_sol.toFixed(6)} SOL\n${d.launched.slice(0, 8).map((l: any) => `• $${l.ticker} ${cfg.appUrl}/token/${l.mint}`).join("\n")}\n\n${cfg.appUrl}/scanner?wallet=${w}`, NOLINK); } catch (e: any) { await c.reply(e.message); }
   });
   bot.command("leaderboard", async c => {
     if (!hasRedis()) return c.reply("Leaderboard is offline.");

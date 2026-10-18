@@ -171,6 +171,9 @@ Devnet tests live in `scripts/devnet/` (multi-user launch → claim → withdraw
 | `JUP_API_KEY` | Jupiter swaps (mainnet only) |
 | `BOT_RESERVE_SOL` | Launch-wallet reserve the volume bots never touch (default 1) |
 
+### Optional: Pimlico fee sponsorship
+Set `PIMLICO_API_KEY` to route SOL transfers (withdrawals, bot funding/sweeps) through Pimlico's Solana paymaster (Kora JSON-RPC). It works on **both mainnet and devnet** (devnet sponsorship is free); the paymaster may only pay the fee (plus rent for created accounts), max 0.1 SOL per tx. Unset = off, the launch wallet pays fees as before. Any paymaster error falls back to the normal path.
+
 ## Safety
 
 - Devnet only by default; mainnet needs an explicit `SOLANA_CLUSTER=mainnet-beta`.

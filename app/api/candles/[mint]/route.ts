@@ -9,7 +9,7 @@ export async function GET(req: Request, { params }: { params: Promise<{ mint: st
   if (!cs.length) { // no trades yet: chart the pump.fun starting price (30 SOL / 1.073B virtual reserves) from launch until now
     const [l] = await sql`select launched_at from launches where mint=${mint}`;
     if (!l) return Response.json({ error: "not launched here" }, { status: 404 });
-    const p0 = 30 / 1_073_000_000, t0 = Math.floor(+new Date(l.launched_at) / 1000 / iv) * iv, t1 = Math.floor(Date.now() / 1000 / iv) * iv;
+    const ci: any = await (await import("@/lib/core/coin")).coinInfo(mint).catch(() => null); const p0 = ci?.curve?.priceQuote ?? 0.3 / 1_073_000_000, t0 = Math.floor(+new Date(l.launched_at) / 1000 / iv) * iv, t1 = Math.floor(Date.now() / 1000 / iv) * iv;
     cs = [{ time: t0, open: p0, high: p0, low: p0, close: p0, volume: 0 }, ...(t1 > t0 ? [{ time: t1, open: p0, high: p0, low: p0, close: p0, volume: 0 }] : [])];
   }
   return Response.json({ candles: cs, initial: !(c as any[]).length, trades: t, stats: v }, { headers: { "cache-control": "no-store" } });

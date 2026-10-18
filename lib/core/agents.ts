@@ -74,8 +74,12 @@ export async function apiCtx(req: Request): Promise<Ctx> {
   if (bearer?.startsWith("hga_")) { const t = await verifyAccess(bearer); const [u] = t ? await sql`select * from users where id=${t.userId} and not banned` : []; if (!u) throw new UserError("Invalid or expired token.", 401); return { ...ctxForUser(u as any, "api"), ip }; }
   if (bearer?.startsWith("hgk_")) { const [u] = await sql`select u.* from connector_keys k join users u on u.id=k.user_id where k.token_hash=${hash(bearer)} and k.revoked_at is null`; if (!u) throw new UserError("Invalid connector key.", 401); return { ...ctxForUser(u as any, "api"), ip }; }
   if (bearer) { const u = await userFromSessionToken(bearer); if (u) return { ...ctxForUser(u, "api"), ip }; throw new UserError("Unknown bearer token.", 401); }
+  const ck = (req.headers.get("cookie") ?? "").match(/(?:^|;\s*)hcl_agent=([^;]+)/)?.[1];
+  if (ck?.startsWith("hcla_")) { const a = await agentByKey(decodeURIComponent(ck)); if (a) return agentCtx(a, "web", ip); }
   return webCtx();
 }
+export const AGENT_COOKIE = "hcl_agent";
+export function agentCookie(v: string, maxAge = 60 * 60 * 24 * 30) { return `${AGENT_COOKIE}=${encodeURIComponent(v)}; Path=/; HttpOnly; Secure; SameSite=Strict; Max-Age=${maxAge}`; }
 export function needActor(ctx: Ctx) { const k = ctx.agentId ? agentKey(ctx.agentId) : ctx.walletKey; if (!k) throw new UserError("Sign in (connect your wallet) or use an agent API key (Authorization: Bearer hcla_...).", 401); return k; }
 
 /** Verify via X post: we fetch the public oEmbed of the post; if the code is in it, verified, otherwise pending. */

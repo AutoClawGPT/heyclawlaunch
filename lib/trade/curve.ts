@@ -1,3 +1,4 @@
+import { pimlicoEnabled, sponsoredSend } from "@/lib/solana/pimlico";
 // Real devnet trades on a pump.fun bonding curve (SOL pair, Token-2022 coins).
 import { Keypair, PublicKey, SystemProgram } from "@solana/web3.js";
 import { TOKEN_2022_PROGRAM_ID, getAssociatedTokenAddressSync } from "@solana/spl-token";
@@ -29,5 +30,6 @@ export async function sell(kp: Keypair, mint: PublicKey, amount?: bigint, slip =
   return { sig: await sendV0(ixs, [kp]), lamports: BigInt(out.toString()) };
 }
 export async function sendSol(from: Keypair, to: PublicKey, lamports: bigint) {
+  if (pimlicoEnabled()) { try { return await sponsoredSend([SystemProgram.transfer({ fromPubkey: from.publicKey, toPubkey: to, lamports })], [from]); } catch (e: any) { console.warn("[pimlico] falling back:", String(e.message).slice(0, 160)); } }
   return sendV0([SystemProgram.transfer({ fromPubkey: from.publicKey, toPubkey: to, lamports })], [from]);
 }

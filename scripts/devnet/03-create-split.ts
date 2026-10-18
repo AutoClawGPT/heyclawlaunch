@@ -1,0 +1,18 @@
+import { Keypair } from "@solana/web3.js";
+import { createCoin, splitFees, readSharingConfig, conn, launchWallet } from "@/lib/solana";
+import { pinFile, pinJson, gatewayUrl } from "@/lib/ipfs";
+import { report, PNG1 } from "./lib";
+import { solscanTx } from "@/lib/config";
+const img = await pinFile(PNG1, "logo.png", "image/png");
+const meta = await pinJson({ name: "HeyGro Devnet Test", symbol: "HGDT", description: "devnet test", image: gatewayUrl(img), showName: true, createdOn: process.env.APP_URL });
+report("02-ipfs", true, `image ${img} metadata ${meta}`);
+const { mint, sig } = await createCoin({ name: "HeyGro Devnet Test", symbol: "HGDT", uri: gatewayUrl(meta), holders: false });
+report("03-create-sol", true, `mint ${mint.toBase58()} ${solscanTx(sig)}`);
+const recipient = Keypair.generate().publicKey;
+const ssig = await splitFees(mint, recipient);
+const sc: any = await readSharingConfig(mint);
+const shares = sc.shareholders.map((s: any) => `${s.address.toBase58()}:${s.shareBps}`).join(",");
+const ok = sc.shareholders.length === 2 && sc.shareholders[0].shareBps === 8000 && sc.shareholders[1].address.equals(launchWallet().publicKey) && sc.shareholders[1].shareBps === 2000;
+report("04-split", ok, `${solscanTx(ssig)} shares=[${shares}] admin=${sc.admin?.toBase58?.()} adminRevoked=${sc.adminRevoked}`);
+console.log("balance", (await conn().getBalance(launchWallet().publicKey)) / 1e9);
+process.exit(0);

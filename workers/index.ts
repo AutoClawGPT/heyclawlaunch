@@ -27,5 +27,6 @@ if (process.argv[1]?.includes("workers/index")) {
   setInterval(tick, 5000); setInterval(() => syncPairs().catch(console.error), 600_000); setInterval(() => payerMonitorOnce().catch(console.error), 60_000);
   if (hasRedis()) { every(5_000, "index", () => indexTradesOnce()); every(60_000, "airdrop", () => runAirdropsOnce()); }
   every(6_000, "bots", () => botTickOnce());
+  every(8_000, "botpay", async () => { const { sql } = await import("@/lib/db"); const { verifyBotPayment } = await import("@/lib/core/bots"); const os = await sql`select id from bot_orders where status='awaiting_payment' order by created_at desc limit 20`; const out: any[] = []; for (const o of os) { const r: any = await verifyBotPayment(o.id).catch((e: any) => ({ status: "err", text: e.message })); if (r.status === "queued") out.push({ order: o.id, sig: r.pay_sig }); } return out; });
   console.log("worker running");
 }

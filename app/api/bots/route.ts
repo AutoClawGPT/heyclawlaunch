@@ -17,6 +17,6 @@ export async function GET(req: Request) {
 }
 export async function POST(req: Request) {
   const b = await req.json().catch(() => ({})); const ctx = await webCtx();
-  try { const r = await orderBot(ctx, { mint: b.mint, kind: b.kind, package: b.package, confirm: b.confirm === true }); return Response.json(r); }
+  try { const r = await orderBot(ctx, { mint: b.mint, kind: b.kind, package: b.package, confirm: b.confirm === true, pay: b.pay }); return Response.json(r); }
   catch (e: any) { return Response.json({ error: e instanceof UserError ? e.message : `Something went wrong: ${String(e.message).slice(0, 200)}` }, { status: 400 }); }
 }

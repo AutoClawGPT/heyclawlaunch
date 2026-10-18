@@ -12,11 +12,12 @@ import { verifyAccess } from "@/lib/auth/oauth";
 import { ctxForUser, type Ctx } from "@/lib/core/ctx";
 import { sha } from "@/lib/core/drafts";
 import { NOT_CONNECTED } from "@/lib/core/wallet";
+import { agentByKey, agentCtx } from "@/lib/core/agents";
 
 export const SERVER_PROTOCOL = "2025-06-18";
 const ACCEPTED = ["2025-06-18", "2025-03-26"];
 const WALLET_TOOLS = new Set<ToolName>(["my_wallet", "claim_fees", "withdraw", "swap"]);
-const outputSchema = { text: z.string(), draft_id: z.string().optional(), ready: z.boolean().optional(), upload_url: z.string().optional(), mint: z.string().optional(), page_url: z.string().optional(), pump_url: z.string().optional(), create_sig: z.string().optional(), split_sig: z.string().optional() };
+const outputSchema = { text: z.string(), draft_id: z.string().optional(), ready: z.boolean().optional(), upload_url: z.string().optional(), mint: z.string().optional(), page_url: z.string().optional(), pump_url: z.string().optional(), create_sig: z.string().optional(), split_sig: z.string().optional(), claim_code: z.string().optional() };
 
 function buildServer(getCtx: () => Ctx) {
   const server = new McpServer({ name: cfg.brand.toLowerCase(), version: "0.1.0" }, { capabilities: { tools: { listChanged: true } }, instructions: instructions() });
@@ -28,7 +29,7 @@ function buildServer(getCtx: () => Ctx) {
       if (WALLET_TOOLS.has(name) && !ctx.walletKey) return { content: [{ type: "text" as const, text: NOT_CONNECTED() }], structuredContent: { text: NOT_CONNECTED() }, isError: true };
       const r = await runTool(ctx, name, args);
       const sc: Record<string, unknown> = { text: r.text };
-      for (const k of ["draft_id", "ready", "upload_url", "mint", "page_url", "pump_url", "create_sig", "split_sig"]) if (r.data?.[k] != null) sc[k] = r.data[k];
+      for (const k of ["draft_id", "ready", "upload_url", "mint", "page_url", "pump_url", "create_sig", "split_sig", "claim_code"]) if (r.data?.[k] != null) sc[k] = r.data[k];
       return { content: [{ type: "text" as const, text: r.text }], structuredContent: sc, isError: !!r.isError };
     });
   }
@@ -56,6 +57,11 @@ async function resolveCtx(req: Request, path: "/mcp" | "/mcp/wallet"): Promise<C
   const auth = req.headers.get("authorization");
   const key = new URL(req.url).searchParams.get("key");
   const bearer = auth?.match(/^Bearer (.+)$/i)?.[1];
+  if (bearer && bearer.startsWith("hcla_")) {
+    const a = await agentByKey(bearer);
+    if (!a) return json(401, { error: "invalid_token", error_description: "Invalid agent API key" }, { "WWW-Authenticate": wwwAuth(path, "invalid_token", "Invalid agent API key") });
+    return agentCtx(a, "mcp", ip);
+  }
   if (bearer && bearer.startsWith("hga_")) {
     const t = await verifyAccess(bearer);
     if (!t) return json(401, { error: "invalid_token", error_description: "Invalid or expired token" }, { "WWW-Authenticate": wwwAuth(path, "invalid_token", "Invalid or expired token") });
@@ -102,14 +108,14 @@ export async function handleMcp(req: Request, path: "/mcp" | "/mcp/wallet"): Pro
   if (sid) {
     const s = sessions.get(sid);
     if (!s) return rpcErr(404, -32001, "Session not found");
-    if ((s.userId ?? null) !== (ctx.userId ?? null)) return rpcErr(403, -32000, "Session belongs to another identity.");
+    if ((s.userId ?? null) !== (ctx.userId ?? ctx.agentId ?? null)) return rpcErr(403, -32000, "Session belongs to another identity.");
     s.touched = Date.now(); s.ctx = ctx;
     const res = await s.transport.handleRequest(req, { parsedBody: body });
     if (req.method === "DELETE") sessions.delete(sid);
     return res;
   }
   if (req.method !== "POST" || !(Array.isArray(body) ? body.some(isInitializeRequest) : isInitializeRequest(body))) return rpcErr(400, -32000, "Bad Request: No valid session ID provided");
-  const holder: Sess = { transport: undefined as any, ctx, userId: ctx.userId, touched: Date.now() };
+  const holder: Sess = { transport: undefined as any, ctx, userId: ctx.userId ?? ctx.agentId, touched: Date.now() };
   holder.transport = new WebStandardStreamableHTTPServerTransport({
     sessionIdGenerator: () => randomUUID(),
     onsessioninitialized: (id) => { sessions.set(id, holder); },

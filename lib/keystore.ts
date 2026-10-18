@@ -43,3 +43,6 @@ export async function importKeypair(ownerKey: string, kp: Keypair): Promise<stri
   await sql`insert into custodial_wallets(owner_key,pubkey,ciphertext,iv,wrapped_dek,dek_iv) values(${ownerKey},${pub},${s.ct},${s.iv},${w.ct},${w.iv})`;
   return pub;
 }
+/** Generic envelope encryption for small secrets (e.g. user LLM provider keys). */
+export function sealSecret(plain: string) { const dek = randomBytes(32); const s = seal(dek, new TextEncoder().encode(plain)), w = seal(master(), dek); dek.fill(0); return { ciphertext: s.ct, iv: s.iv, wrapped_dek: w.ct, dek_iv: w.iv }; }
+export function openSecret(r: { ciphertext: Uint8Array; iv: Uint8Array; wrapped_dek: Uint8Array; dek_iv: Uint8Array }) { const dek = open(master(), r.dek_iv, r.wrapped_dek); const p = open(dek, r.iv, r.ciphertext); dek.fill(0); return new TextDecoder().decode(p); }

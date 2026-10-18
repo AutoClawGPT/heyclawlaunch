@@ -7,6 +7,7 @@ import { loadDraft, nextQuestion, feeLabel, type Draft } from "./drafts";
 import { conn, createCoin, splitFees, launchWallet } from "@/lib/solana";
 import { pinJson, gatewayUrl } from "@/lib/ipfs";
 import { getOrCreateCustodial } from "@/lib/keystore";
+import { issueClaimCode } from "./claims";
 
 const dayUtc = () => new Date().toISOString().slice(0, 10);
 function limitKeys(ctx: Ctx, recipient: string | null) {
@@ -50,7 +51,7 @@ export async function runSplit(launchId: string) {
   }
 }
 
-export type LaunchResult = { text: string; mint?: string; pageUrl?: string; pumpUrl?: string; createSig?: string; splitSig?: string };
+export type LaunchResult = { text: string; mint?: string; pageUrl?: string; pumpUrl?: string; createSig?: string; splitSig?: string; claimCode?: string };
 export async function confirmLaunch(ctx: Ctx, draftId: string): Promise<LaunchResult> {
   let d = await loadDraft(ctx, draftId);
   if (d.status === "launched") { const [l] = await sql`select * from launches where draft_id=${d.id}`; return okText(d, l); }
@@ -75,7 +76,10 @@ export async function confirmLaunch(ctx: Ctx, draftId: string): Promise<LaunchRe
       values(${d.id},${ctx.ownerKey},${mint.toBase58()},${sig},${recipient ? "pending" : "none"},${metaCid},${launch.publicKey.toBase58()},${recipient},${d.pair_mint},${d.fee_mode === "holders"},${d.creator_fee_bps},${d.name},${d.ticker},${d.logo_cid},${feeLabel(d)}) returning *`;
     [d] = await sql<Draft[]>`update drafts set status='launched', updated_at=now() where id=${d.id} returning *`;
     const l2 = recipient ? await runSplit(l.id) : l;   // tx 2; the worker retries if it failed
-    return okText(d, l2);
+    const code = d.fee_mode === "wallet" && recipient ? await issueClaimCode(l.mint, recipient).catch(() => null) : null;
+    const r = okText(d, l2);
+    if (code) { r.claimCode = code; r.text += `\n  CLAIM CODE (shown once, save it): ${code}\n  Claim fees any time at ${cfg.appUrl}/claim with your wallet + this code, or by connecting that wallet.`; }
+    return r;
   } catch (e: any) {
     await releaseLimit(keys);
     await sql`update drafts set status='ready', error=${String(e?.message ?? e).slice(0, 500)} where id=${d.id}`;

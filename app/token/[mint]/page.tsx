@@ -11,6 +11,12 @@ import { short, ago } from "@/lib/core/market";
 import { CoinImg } from "@/components/hg/CoinTable";
 import CopyBtn from "@/components/hg/CopyBtn";
 export const dynamic = "force-dynamic";
+import { ogMeta } from "@/lib/og";
+import { sql } from "@/lib/db";
+export async function generateMetadata({ params }: { params: Promise<{ mint: string }> }) {
+  const { mint } = await params; const [l] = await sql`select name,ticker,description from launches l left join drafts d on d.id=l.draft_id where l.mint=${mint}`.catch(() => []);
+  return l ? ogMeta(`${l.name} ($${l.ticker})`, (l.description || `$${l.ticker} on pump.fun, launched with HeyClawLaunch.`).slice(0, 180), `type=token&mint=${mint}`) : {};
+}
 const acct = (a: string) => `https://solscan.io/account/${a}${clusterQs()}`;
 function Row({ k, v, href, copy }: { k: string; v: string; href?: string; copy?: string }) {
   return <div className="flex items-center justify-between gap-3 py-2.5 text-sm"><span className="text-[var(--fg-2)]">{k}</span><span className="flex items-center gap-2">{href ? <a href={href} target="_blank" rel="noreferrer" className="mono text-[var(--accent)] hover:underline">{v}</a> : <span className="mono">{v}</span>}{copy && <CopyBtn v={copy} />}</span></div>;

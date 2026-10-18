@@ -72,6 +72,7 @@ export async function claimFees(ctx: Ctx) {
       total += got;
       lines.push(`- $${c.ticker}: +${fmt(got / LAMPORTS_PER_SOL)} SOL ${solscanTx(r.sig)}`);
       await sql`insert into wallet_ops(owner_key,kind,status,sig) values(${key},'claim','done',${r.sig})`;
+      await sql`insert into fee_claims(mint,wallet,lamports,sig,via) values(${c.mint},${addr},${got},${r.sig},'custodial') on conflict do nothing`;
     } catch (e: any) { lines.push(`- $${c.ticker}: failed (${String(e.message).slice(0, 120)})`); }
   }
   if (total <= 0) return `nothing to claim yet (minimum 0.00065024 SOL)\n${lines.join("\n")}`;

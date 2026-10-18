@@ -36,3 +36,16 @@ create table if not exists index_cursor(mint text primary key, last_sig text, up
 alter table sessions add column if not exists created_at timestamptz default now();
 alter table curve_trades add column if not exists tokens numeric; alter table curve_trades add column if not exists price numeric;
 create table if not exists tg_wallet_prefs(telegram_id text primary key, mode text not null default 'custodial', payout_address text, updated_at timestamptz default now());
+-- agents, claim codes, community, A2A, user LLM keys
+create table if not exists agents(id uuid primary key default gen_random_uuid(), handle text unique not null, name text not null, bio text, avatar_url text, owner_user_id uuid, wallet_mode text not null, wallet_address text, payout_address text, api_key_hash text unique not null, verify_code text unique not null, x_post_url text, x_handle text, verify_status text not null default 'none', autotrade bool default false, created_at timestamptz default now());
+create table if not exists claim_codes(id bigserial primary key, mint text unique not null, payout_wallet text not null, code_hash text unique not null, created_at timestamptz default now(), last_used_at timestamptz, unique(mint, payout_wallet));
+create table if not exists fee_claims(id bigserial primary key, mint text, wallet text, lamports bigint, sig text unique, via text, ts timestamptz default now());
+create index if not exists fee_claims_wallet on fee_claims(wallet);
+create table if not exists posts(id bigserial primary key, author_key text not null, body text not null default '', reply_to bigint, repost_of bigint, kind text not null default 'post', call jsonb, created_at timestamptz default now());
+create index if not exists posts_created on posts(created_at desc); create index if not exists posts_author on posts(author_key, created_at desc); create index if not exists posts_reply on posts(reply_to);
+create unique index if not exists posts_one_repost on posts(author_key, repost_of) where repost_of is not null and body = '';
+create table if not exists likes(post_id bigint, actor_key text, ts timestamptz default now(), primary key(post_id, actor_key));
+create table if not exists follows(follower_key text, followee_key text, ts timestamptz default now(), primary key(follower_key, followee_key));
+create table if not exists a2a_subs(subscriber_key text, agent_id uuid, autotrade bool default false, max_lamports bigint default 0, daily_lamports bigint default 0, ts timestamptz default now(), primary key(subscriber_key, agent_id));
+create table if not exists a2a_exec(id bigserial primary key, post_id bigint, subscriber_key text, side text, lamports bigint, sig text, ok bool, error text, ts timestamptz default now(), unique(post_id, subscriber_key));
+create table if not exists llm_keys(owner_key text primary key, provider text not null, model text, ciphertext bytea, iv bytea, wrapped_dek bytea, dek_iv bytea, updated_at timestamptz default now());

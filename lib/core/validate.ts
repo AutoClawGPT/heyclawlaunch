@@ -1,5 +1,5 @@
 import { PublicKey } from "@solana/web3.js";
-export class UserError extends Error {}
+export class UserError extends Error { constructor(msg: string, public status = 400) { super(msg); } }
 export const isNothing = (s?: string) => !!s && /^(nothing|none|no|skip|n\/a|-|gak ada|nope)$/i.test(s.trim());
 export function vName(s: string) { s = s.trim(); if (!s) throw new UserError("The name can't be empty."); if (s.length > 32) throw new UserError("The name must be 32 characters or less."); return s; }
 export function vTicker(s: string) { s = s.trim().replace(/^\$/, "").toUpperCase(); if (!/^[A-Z0-9]{1,10}$/.test(s)) throw new UserError("The ticker must be 1–10 letters or digits (e.g. DOGE)."); return s; }

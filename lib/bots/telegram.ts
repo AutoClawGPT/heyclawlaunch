@@ -10,6 +10,8 @@ import { prepareLaunch } from "@/lib/core/drafts";
 import { createPending } from "@/lib/brain/agent";
 import { getOrCreateCustodial } from "@/lib/keystore";
 import { generateLogo, generateIdea, logoPrompt } from "@/lib/image-gen";
+import { registerCommands, COMMANDS } from "@/lib/bots/tg-commands";
+export { COMMANDS };
 
 type Thread = { messages: ChatMsg[]; draftId: string | null; awaitPrompt?: boolean; lastPrompt?: string };
 const threads = new Map<string, Thread>();
@@ -87,11 +89,9 @@ export function buildBot(token = process.env.TELEGRAM_BOT_TOKEN!) {
       return c.reply(l ? "Linked! Finish on the website tab to attach this Telegram account to your wallet." : "That link expired. Use /link again.");
     }
     threads.delete(key(c));
-    await c.reply(`Hi! I'm ${cfg.brand}. I launch pump.fun coins for you — no wallet, no signing, no dev buy (${cfg.cluster}).\n\nSay "launch a coin" to start, or tap Quick launch and I'll invent the whole coin (name, ticker, logo) for you. Also /quick <theme>, /wallet, /claim, /pairs, /link.`, { reply_markup: new InlineKeyboard().text("⚡ Quick launch", `q:${c.from!.id}`).text("🚀 Launch step by step", `s:${c.from!.id}`) });
+    await c.reply(`Hi! I'm ${cfg.brand}. I launch pump.fun coins for you — no wallet, no signing, no dev buy (${cfg.cluster}).\n\nSay "launch a coin" to start, or tap Quick launch and I'll invent the whole coin (name, ticker, logo) for you. Also /templates, /wallet, /bots, /leaderboard, /help for everything.`, { reply_markup: new InlineKeyboard().text("⚡ Quick launch", `q:${c.from!.id}`).text("🚀 Launch step by step", `s:${c.from!.id}`) });
   });
   bot.command("launch", c => { threads.delete(key(c)); return converse(c, "I want to launch a new coin" + (c.match ? `: ${c.match}` : "")); });
-  bot.command("wallet", c => converse(c, "Show my wallet"));
-  bot.command("claim", c => converse(c, "Claim my creator fees"));
   bot.command("withdraw", c => converse(c, `I want to withdraw ${c.match ?? ""}`.trim()));
   bot.command("swap", c => converse(c, `I want to swap ${c.match ?? ""}`.trim()));
   bot.command("pairs", async c => { const r = await runTool(await tgCtx(c.from!.id), "list_pairs", {}); for (const p of chunks(r.text)) await c.reply(p); });
@@ -102,6 +102,7 @@ export function buildBot(token = process.env.TELEGRAM_BOT_TOKEN!) {
     await sql`insert into telegram_links(token,telegram_id,expires_at) values(${t},${String(c.from!.id)},now()+interval '15 minutes')`;
     await c.reply(`Open this link while signed in on the website (wallet or X) to link this Telegram account to it (valid 15 min):\n${cfg.appUrl}/link/telegram?token=${t}`, { link_preview_options: { is_disabled: true } });
   });
+  registerCommands(bot, { converse, draftId: c => thread(c).draftId, setDraft: (c, id) => { const th = thread(c); th.draftId = id; th.messages.push({ role: "assistant", content: `[Template draft ${id} prepared; waiting for Confirm]` }); } });
   bot.on("callback_query:data", async (c, next) => {
     const [kind, arg] = c.callbackQuery.data.split(":");
     if (!["u", "g", "gn", "r", "q", "rq", "s"].includes(kind)) return next();

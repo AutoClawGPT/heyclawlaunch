@@ -6,12 +6,12 @@ import { gatewayUrl } from "@/lib/ipfs";
 import { UserError } from "@/lib/core/validate";
 import type { Ctx } from "@/lib/core/ctx";
 
-export type Template = { id: string; name: string; ticker: string; description: string | null; logo_cid: string | null; pair: string; theme: string | null; logo_url?: string };
+export type Template = { id: string; name: string; ticker: string; description: string | null; logo_cid: string | null; pair: string; theme: string | null; logo_url?: string; logo_src?: string };
 export async function listTemplates(): Promise<Template[]> {
   const rows = await sql`select * from templates order by sort, created_at`;
-  return rows.map((t: any) => ({ ...t, logo_url: t.logo_cid ? gatewayUrl(t.logo_cid) : undefined }));
+  return rows.map((t: any) => ({ ...t, logo_url: t.logo_cid ? gatewayUrl(t.logo_cid) : undefined, logo_src: t.logo_cid ? `/api/ipfs/${t.logo_cid}` : undefined }));
 }
-export async function getTemplate(id: string) { const [t] = await sql`select * from templates where id=${id}`; if (!t) throw new UserError("Unknown template."); return { ...t, logo_url: t.logo_cid ? gatewayUrl(t.logo_cid) : undefined } as Template; }
+export async function getTemplate(id: string) { const [t] = await sql`select * from templates where id=${id}`; if (!t) throw new UserError("Unknown template."); return { ...t, logo_url: t.logo_cid ? gatewayUrl(t.logo_cid) : undefined, logo_src: t.logo_cid ? `/api/ipfs/${t.logo_cid}` : undefined } as Template; }
 /** Creates a complete draft from the template. Fees go to the user's own custodial wallet (80%). Returns the draft; launching still needs confirm_launch. */
 export async function draftFromTemplate(ctx: Ctx, id: string) {
   const key = ctx.walletKey ?? (ctx.ownerKey.startsWith("tg:") ? ctx.ownerKey : null);

@@ -8,9 +8,24 @@ export async function coinInfo(mint: string) {
   let curve: any = null, sc: any = null;
   try { const bc = await online().fetchBondingCurve(new PublicKey(mint)); const global = await online().fetchGlobal();
     const sold = BigInt(global.initialRealTokenReserves.toString()) - BigInt(bc.realTokenReserves.toString());
-    curve = { complete: bc.complete, creator: bc.creator.toBase58(), realQuote: Number((bc as any).realQuoteReserves ?? (bc as any).realSolReserves.toString()), progress: Math.min(100, Number(sold * 10000n / BigInt(global.initialRealTokenReserves.toString())) / 100), priceQuote: Number(((bc as any).virtualQuoteReserves ?? (bc as any).virtualSolReserves).toString()) / Number(bc.virtualTokenReserves.toString()) / 1000 };
+    curve = { complete: bc.complete, creator: bc.creator.toBase58(), realQuote: Number((bc as any).realQuoteReserves ?? (bc as any).realSolReserves.toString()), progress: Math.min(100, Number(sold * 10000n / BigInt(global.initialRealTokenReserves.toString())) / 100), priceQuote: (Number(((bc as any).virtualQuoteReserves ?? (bc as any).virtualSolReserves).toString()) / 1e9) / (Number(bc.virtualTokenReserves.toString()) / 1e6), vq0: Number((bc as any).initialVirtualQuoteReserves?.toString() ?? global.initialVirtualQuoteReserves?.toString() ?? 30e9), supply: Number(bc.tokenTotalSupply?.toString() ?? 1e15) / 1e6 };
   } catch {}
   try { const s = await readSharingConfig(new PublicKey(mint)); if (s) sc = s.shareholders.map((x: any) => ({ address: x.address.toBase58(), bps: x.shareBps })); } catch {}
   const sigs = await conn().getSignaturesForAddress(bondingCurvePda(new PublicKey(mint)), { limit: 30 }).catch(() => []);
   return { launch: l ?? null, curve, shares: sc, recent: sigs.map(s => ({ sig: s.signature, time: s.blockTime, err: !!s.err })) };
+}
+/** Holder count: token accounts of this mint with a non-zero balance (excluding the bonding curve). */
+export async function holderCount(mint: string): Promise<number | null> {
+  try {
+    const { TOKEN_2022_PROGRAM_ID, TOKEN_PROGRAM_ID } = await import("@solana/spl-token");
+    let n = 0;
+    for (const prog of [TOKEN_2022_PROGRAM_ID, TOKEN_PROGRAM_ID]) {
+      const accs = await conn().getProgramAccounts(prog, { filters: [{ memcmp: { offset: 0, bytes: mint } }], dataSlice: { offset: 32, length: 40 } });
+      const curve = bondingCurvePda(new PublicKey(mint)).toBase58();
+      for (const a of accs) { const d = a.account.data; const owner = new PublicKey(d.subarray(0, 32)).toBase58(); const amt = d.readBigUInt64LE(32); if (amt > 0n && owner !== curve) n++; }
+    }
+    return n;
+  } catch {
+    try { const top = await conn().getTokenLargestAccounts(new PublicKey(mint)); const curve = bondingCurvePda(new PublicKey(mint)); const { getAssociatedTokenAddressSync, TOKEN_2022_PROGRAM_ID } = await import("@solana/spl-token"); const cAta = getAssociatedTokenAddressSync(new PublicKey(mint), curve, true, TOKEN_2022_PROGRAM_ID).toBase58(); return top.value.filter(a => Number(a.amount) > 0 && a.address.toBase58() !== cAta).length; } catch { return null; }
+  }
 }

@@ -6,7 +6,8 @@ import { sql } from "@/lib/db";
 import { cfg, solscanTx } from "@/lib/config";
 import { conn } from "@/lib/solana";
 import { createPending } from "@/lib/brain/agent";
-import { getOrCreateCustodial, withCustodialSigner } from "@/lib/keystore";
+import { getOrCreateCustodial, withCustodialSigner, importKeypair, findCustodial } from "@/lib/keystore";
+import { Keypair } from "@solana/web3.js";
 import { listTemplates, draftFromTemplate } from "@/lib/core/templates";
 import { myWallet, claimFees } from "@/lib/core/wallet";
 import { KINDS, orderBot, myBotOrders, botMarkets, type Kind } from "@/lib/core/bots";
@@ -21,6 +22,8 @@ const err = (e: any) => String(e?.message ?? e).slice(0, 600);
 const NOLINK = { link_preview_options: { is_disabled: true } } as const;
 const until = (iso: string) => { const s = Math.max(0, (+new Date(iso) - Date.now()) / 1000); return `${Math.floor(s / 3600)}h ${Math.floor((s % 3600) / 60)}m`; };
 const botSel = new Map<number, { mint?: string; kind?: Kind }>();
+const awaitingKey = new Set<number>();
+function parseSecret(t: string): Keypair | null { try { const s = t.trim(); const b = s.startsWith("[") ? Uint8Array.from(JSON.parse(s)) : bs58.decode(s); return b.length === 64 ? Keypair.fromSecretKey(b) : b.length === 32 ? Keypair.fromSeed(b) : null; } catch { return null; } }
 
 export const COMMANDS = [
   ["start", "Start / main menu"], ["launch", "Launch a coin step by step"], ["quick", "Quick launch: AI invents the whole coin"],
@@ -28,7 +31,7 @@ export const COMMANDS = [
   ["deposit", "Your deposit address"], ["balance", "SOL balance"], ["claim", "Claim creator fees"], ["claimall", "Claim fees from every coin"],
   ["withdraw", "Withdraw SOL or tokens"], ["swap", "Buy / sell tokens"], ["mylaunches", "Coins you launched"], ["token", "Token info: /token <mint>"],
   ["leaderboard", "Volume leaderboard"], ["airdrops", "Airdrop prizes and history"], ["bots", "Volume bots: buy a package"], ["volume", "Volume bots (alias)"],
-  ["mybots", "Your bot orders"], ["exportkey", "Export your private key (DM only)"], ["settings", "Settings"], ["pairs", "Pair assets"],
+  ["mybots", "Your bot orders"], ["exportkey", "Export your private key (DM only)"], ["importwallet", "Import your own wallet (DM only)"], ["usewallet", "Choose custodial or imported wallet"], ["payout", "Set a read-only payout address"], ["settings", "Settings"], ["pairs", "Pair assets"],
   ["link", "Link Telegram to your web account"], ["new", "Reset the conversation"], ["help", "All commands"],
 ] as const;
 
@@ -96,6 +99,32 @@ export function registerCommands(bot: Bot, h: { converse: (c: Context, t: string
     await c.reply(os.length ? os.map((o: any) => `${o.kind} ${o.package} on $${o.ticker ?? o.mint.slice(0, 4)} — ${o.status} · ${o.trades ?? 0}/${o.max_trades} trades`).join("\n") : "No bot orders yet. /bots");
   });
   bot.command("exportkey", c => exportAsk(c));
+  bot.command("importwallet", c => {
+    if (c.chat?.type !== "private") return c.reply("For your safety, /importwallet only works in a private chat with me.");
+    return c.reply("🔐 IMPORT YOUR OWN WALLET\nYour key is encrypted (AES-256-GCM, per-wallet key) and only decrypted to sign transactions you confirm. Use a dedicated hot wallet, never your main one.\n\nThis is optional: you can keep using your HeyClawLaunch wallet, or just set a read-only payout address with /payout <address>.", { reply_markup: new InlineKeyboard().text("I understand — import a key", `ik:${c.from!.id}`).text("Cancel", `en:${c.from!.id}`) });
+  });
+  bot.command("payout", async c => {
+    const a = String(c.match ?? "").trim(); if (!a) { const [p] = await sql`select payout_address from tg_wallet_prefs where telegram_id=${String(c.from!.id)}`; return c.reply(`Payout address: ${p?.payout_address ?? "not set"}\nSet it with /payout <solana address>. It's read-only: withdrawals and claims can be sent there; we never hold its key.`); }
+    try { new PublicKey(a); } catch { return c.reply("That isn't a valid Solana address."); }
+    await sql`insert into tg_wallet_prefs(telegram_id,payout_address) values(${String(c.from!.id)},${a}) on conflict(telegram_id) do update set payout_address=excluded.payout_address, updated_at=now()`;
+    await c.reply(`Payout address saved: ${a}\nSay "withdraw everything to my payout address" any time.`);
+  });
+  bot.command("usewallet", async c => {
+    const uid = c.from!.id; const base = await getOrCreateCustodial((await tgCtx(uid)).ownerKey.startsWith("tg:") ? `tg:${uid}` : (await tgCtx(uid)).ownerKey); const imp = await findCustodial(`tgimp:${uid}`);
+    const [p] = await sql`select mode from tg_wallet_prefs where telegram_id=${String(uid)}`; const mode = p?.mode ?? "custodial";
+    const kb = new InlineKeyboard().text(`${mode === "custodial" ? "✅ " : ""}HeyClawLaunch wallet`, `uw:${uid}:custodial`); if (imp) kb.text(`${mode === "imported" ? "✅ " : ""}Imported wallet`, `uw:${uid}:imported`);
+    await c.reply(`Which wallet should I use to launch (fee recipient), pay for bots and trade?\n• HeyClawLaunch wallet: ${base}\n• Imported wallet: ${imp ?? "none — /importwallet"}`, { reply_markup: kb });
+  });
+  bot.on("message:text", async (c, next) => {
+    if (!awaitingKey.has(c.from.id) || c.chat.type !== "private") return next();
+    awaitingKey.delete(c.from.id); await c.deleteMessage().catch(() => {});
+    const kp = parseSecret(c.message.text); if (!kp) return c.reply("That doesn't look like a Solana private key (base58 or a JSON byte array). Nothing was saved. Try /importwallet again.");
+    try { const pub = await importKeypair(`tgimp:${c.from.id}`, kp); kp.secretKey.fill(0);
+      await sql`insert into tg_wallet_prefs(telegram_id,mode) values(${String(c.from.id)},'imported') on conflict(telegram_id) do update set mode='imported', updated_at=now()`;
+      await sql`insert into audit_log(actor,action,detail) values(${`tgimp:${c.from.id}`},'import_key',${JSON.stringify({ address: pub })})`;
+      await c.reply(`✅ Imported ${pub} and switched to it. I deleted your message with the key.\nSwitch back any time with /usewallet.`);
+    } catch (e) { await c.reply(err(e)); }
+  });
   const exportAsk = (c: Context) => {
     if (c.chat?.type !== "private") return c.reply("For your safety, /exportkey only works in a private chat with me.");
     return c.reply("⚠️ EXPORT PRIVATE KEY\nAnyone with this key fully controls your wallet and everything in it. Never share it, never paste it into websites. We will never ask for it.\n\nOnly continue if you are alone and understand the risk.", { reply_markup: new InlineKeyboard().text("I understand — reveal", `ey:${c.from!.id}`).text("Cancel", `en:${c.from!.id}`) });
@@ -103,11 +132,13 @@ export function registerCommands(bot: Bot, h: { converse: (c: Context, t: string
 
   bot.on("callback_query:data", async (c, next) => {
     const [kind, uid, ...rest] = c.callbackQuery.data.split(":"); const arg = rest.join(":");
-    if (!["tp", "bm", "bk", "bp", "bc", "ek", "ey", "en", "wl"].includes(kind)) return next();
+    if (!["tp", "bm", "bk", "bp", "bc", "ek", "ey", "en", "wl", "ik", "uw"].includes(kind)) return next();
     if (String(c.from.id) !== uid) return c.answerCallbackQuery({ text: "Only the person who asked can use these buttons.", show_alert: true });
     await c.answerCallbackQuery(); const ctx = await tgCtx(c.from.id);
     try {
       if (kind === "wl") return c.reply(await myWallet(ctx), NOLINK);
+      if (kind === "ik") { awaitingKey.add(c.from.id); return c.editMessageText("Send the private key now as your next message (base58 or JSON byte array). I'll delete it right after reading it."); }
+      if (kind === "uw") { await sql`insert into tg_wallet_prefs(telegram_id,mode) values(${String(c.from.id)},${arg}) on conflict(telegram_id) do update set mode=excluded.mode, updated_at=now()`; const n = await tgCtx(c.from.id); return c.reply(`Now using your ${arg === "imported" ? "imported" : "HeyClawLaunch"} wallet: ${await getOrCreateCustodial(n.walletKey!)}`); }
       if (kind === "ek") return exportAsk(c);
       if (kind === "en") return c.editMessageText("Cancelled. Your key was not shown.");
       if (kind === "ey") {

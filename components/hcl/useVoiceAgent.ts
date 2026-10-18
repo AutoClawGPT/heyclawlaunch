@@ -57,5 +57,5 @@ export function useVoiceAgent(ask: (text: string) => Promise<string>, opts: { on
       sock.onerror = () => { setErr("Voice connection failed."); setState("error"); };
     } catch (e: any) { setErr(e.message ?? String(e)); stop(); setState("error"); }
   }
-  return { state, err, start, stop, active: !!ws.current };
+  return { state, err, start, stop, active: state !== "off" && state !== "error" };
 }

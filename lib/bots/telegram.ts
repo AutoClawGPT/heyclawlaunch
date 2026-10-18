@@ -21,8 +21,10 @@ const thread = (c: Context) => { const k = key(c); if (!threads.has(k)) threads.
 /** Telegram identity: linked site account (SIWS/X) if linked, else this Telegram user's own wallet (tg:<id>). Telegram user ids are authenticated by Telegram. */
 export async function tgCtx(fromId: number): Promise<Ctx> {
   const [u] = await sql`select * from users where telegram_id=${String(fromId)}`;
-  if (u) return { ...ctxForUser(u as any, "telegram") };
-  return { ownerKey: `tg:${fromId}`, walletKey: `tg:${fromId}`, surface: "telegram" };
+  const base: Ctx = u ? { ...ctxForUser(u as any, "telegram") } : { ownerKey: `tg:${fromId}`, walletKey: `tg:${fromId}`, surface: "telegram" };
+  const [p] = await sql`select mode from tg_wallet_prefs where telegram_id=${String(fromId)}`.catch(() => []);
+  if (p?.mode === "imported") { const [w] = await sql`select 1 from custodial_wallets where owner_key=${`tgimp:${fromId}`}`; if (w) return { ...base, walletKey: `tgimp:${fromId}` }; }
+  return base;
 }
 
 /** Logo keyboard shown when the bot asks for the logo. Callback data carries the requester's Telegram id: only they can press. */

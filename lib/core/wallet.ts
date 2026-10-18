@@ -120,7 +120,7 @@ export async function withdraw(ctx: Ctx, a: { to: string; amount: string; token?
   const to = new PublicKey(vAddress(a.to));
   const t = await resolveToken(a.token, addr);
   const bal = await balanceOf(addr, t);
-  let amt = /^all$/i.test(a.amount.trim()) ? bal : toBase(a.amount, t.decimals);
+  const amt = /^all$/i.test(a.amount.trim()) ? bal : toBase(a.amount, t.decimals);
   if (amt <= 0n) throw new UserError(`Nothing to withdraw: the ${t.symbol} balance is 0.`);
   if (amt > bal) throw new UserError(`Not enough ${t.symbol}: balance ${fromBase(bal, t.decimals)}.`);
   if (t.mint === "SOL" && amt < bal && bal - amt < BigInt(RENT_ZERO)) throw new UserError(`That would leave ${fromBase(bal - amt, 9)} SOL, below the 0.00065024 SOL rent minimum. Withdraw "all" or leave at least 0.00065024 SOL.`);
@@ -143,10 +143,10 @@ export async function swap(ctx: Ctx, a: { from?: string; to: string; amount: str
   if (from.mint === to.mint || (from.mint !== "SOL" && to.mint !== "SOL" && from.mint.equals(to.mint))) throw new UserError("From and to are the same token.");
   const slip = Math.min(25, Math.max(0.1, a.slippage_percent ?? 3));
   const bal = await balanceOf(addr, from);
-  let amt = /^all$/i.test(a.amount.trim()) ? (from.mint === "SOL" ? bal - 5_000_000n : bal) : toBase(a.amount, from.decimals);
+  const amt = /^all$/i.test(a.amount.trim()) ? (from.mint === "SOL" ? bal - 5_000_000n : bal) : toBase(a.amount, from.decimals);
   if (amt <= 0n || amt > bal) throw new UserError(`Not enough ${from.symbol}: balance ${fromBase(bal, from.decimals)}.`);
   const norm = { from: from.mint === "SOL" ? "SOL" : from.mint.toBase58(), to: to.mint === "SOL" ? "SOL" : to.mint.toBase58(), amount: a.amount.trim().toLowerCase(), slip };
-  const useJup = cfg.cluster === "mainnet-beta" && process.env.JUP_MOCK !== "1";
+  const useJup = cfg.cluster === "mainnet-beta";
   let expected: string, route: string, exec: () => Promise<string>;
   if (useJup) {
     const q = new URLSearchParams({ inputMint: from.mint === "SOL" ? NATIVE_MINT.toBase58() : from.mint.toBase58(), outputMint: to.mint === "SOL" ? NATIVE_MINT.toBase58() : to.mint.toBase58(), amount: amt.toString(), taker: addr.toBase58(), slippageBps: String(Math.round(slip * 100)) });

@@ -6,7 +6,7 @@ import { usePoll, ago, short } from "./ui";
 async function post(url: string, body: any) { const r = await fetch(url, { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify(body) }); const j = await r.json().catch(() => ({})); if (!r.ok) throw new Error(j.error ?? "failed"); return j; }
 export function Avatar({ a, size = 40 }: { a: any; size?: number }) {
   const src = a?.avatar || (a?.kind === "agent" ? `/api/og?type=avatar&seed=${(a.handle ?? "a").replace("@", "")}` : null);
-  return src ? <img src={src} alt="" width={size} height={size} className="shrink-0 rounded-full object-cover border border-[var(--line)]" style={{ width: size, height: size }} /> : <div className="shrink-0 rounded-full bg-[var(--bg-3)] border border-[var(--line)] flex items-center justify-center text-[12px] text-[var(--muted)]" style={{ width: size, height: size }}>{(a?.name ?? "?").replace("@", "").slice(0, 2)}</div>;
+  return src ? <img onError={e => { const i = e.currentTarget; const fb = `/api/og?type=avatar&seed=${(a?.handle ?? "a").replace("@", "")}`; if (!i.src.includes("/api/og")) i.src = fb; }} src={src} alt="" width={size} height={size} className="shrink-0 rounded-full object-cover border border-[var(--line)]" style={{ width: size, height: size }} /> : <div className="shrink-0 rounded-full bg-[var(--bg-3)] border border-[var(--line)] flex items-center justify-center text-[12px] text-[var(--muted)]" style={{ width: size, height: size }}>{(a?.name ?? "?").replace("@", "").slice(0, 2)}</div>;
 }
 function Name({ a }: { a: any }) {
   const n = <span className="font-semibold">{a?.name ?? "unknown"}</span>;

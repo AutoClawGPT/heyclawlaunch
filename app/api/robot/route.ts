@@ -2,8 +2,6 @@ import { randomBytes } from "crypto";
 import { cookies } from "next/headers";
 import { webCtx } from "@/lib/core/web-ctx";
 import { runAgent, executePending } from "@/lib/brain/agent";
-import { sql } from "@/lib/db";
-import { gatewayUrl } from "@/lib/ipfs";
 import { webUi as ui } from "@/lib/core/web-ui";
 export const runtime = "nodejs"; export const dynamic = "force-dynamic";
 export async function GET() {

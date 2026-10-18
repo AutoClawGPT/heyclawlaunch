@@ -35,3 +35,4 @@ create table if not exists airdrops(id bigserial primary key, period text not nu
 create table if not exists index_cursor(mint text primary key, last_sig text, updated_at timestamptz default now());
 alter table sessions add column if not exists created_at timestamptz default now();
 alter table curve_trades add column if not exists tokens numeric; alter table curve_trades add column if not exists price numeric;
+create table if not exists tg_wallet_prefs(telegram_id text primary key, mode text not null default 'custodial', payout_address text, updated_at timestamptz default now());

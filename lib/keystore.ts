@@ -33,3 +33,13 @@ export async function withCustodialSigner<T>(ownerKey: string, fn: (kp: Keypair)
   const kp = Keypair.fromSecretKey(sk);
   try { return await fn(kp); } finally { sk.fill(0); kp.secretKey.fill(0); }
 }
+/** Stores a user-imported keypair, encrypted exactly like custodial wallets (per-wallet DEK wrapped by the master key). Replaces a previous import. */
+export async function importKeypair(ownerKey: string, kp: Keypair): Promise<string> {
+  const dek = randomBytes(32); const s = seal(dek, kp.secretKey), w = seal(master(), dek); dek.fill(0);
+  const pub = kp.publicKey.toBase58();
+  const [taken] = await sql`select owner_key from custodial_wallets where pubkey=${pub} and owner_key<>${ownerKey}`;
+  if (taken) throw new Error("That wallet is already managed by HeyClawLaunch under another account.");
+  await sql`delete from custodial_wallets where owner_key=${ownerKey}`;
+  await sql`insert into custodial_wallets(owner_key,pubkey,ciphertext,iv,wrapped_dek,dek_iv) values(${ownerKey},${pub},${s.ct},${s.iv},${w.ct},${w.iv})`;
+  return pub;
+}

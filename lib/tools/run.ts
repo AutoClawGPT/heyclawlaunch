@@ -8,7 +8,7 @@ import type { ToolName } from "./defs";
 import { generateLogo, generateTokenIdea, logoPrompt } from "@/lib/image-gen";
 import { listTemplates, draftFromTemplate } from "@/lib/core/templates";
 import { leaderboard, nextReset, PRIZES } from "@/lib/core/leaderboard";
-import { KINDS, orderBot } from "@/lib/core/bots";
+import { KINDS, orderBot, verifyBotPayment } from "@/lib/core/bots";
 import { createPost, feed, broadcastCall, subscribe, inbox, resolveTarget } from "@/lib/core/social";
 
 export type ToolOut = { text: string; isError?: boolean; data?: Record<string, unknown> };
@@ -58,8 +58,9 @@ export async function runTool(ctx: Ctx, name: ToolName, args: any): Promise<Tool
       }
       case "volume_bot": {
         if (!args?.package || !args?.kind || !args?.mint) return { text: Object.entries(KINDS).map(([k, v]) => `${v.title} (${k}): ${v.desc}\n` + v.pkgs.map(p => `  - ${p.id}: ${p.name}, ${Number(p.price) / 1e9} SOL — ${p.blurb}`).join("\n")).join("\n\n") + "\n\nTell me the coin (mint), the bot and the package." };
-        const r = await orderBot(ctx, args); return { text: r.text, data: { order_id: (r as any).orderId, preview: !!(r as any).preview } };
+        const r = await orderBot(ctx, args); return { text: r.text, data: { order_id: (r as any).orderId, preview: !!(r as any).preview, payment: (r as any).payment } };
       }
+      case "bot_payment": { const r = await verifyBotPayment(String(args?.order_id ?? ""), args?.tx); return { text: r.text, data: r as any }; }
       case "community_post": { const r: any = await createPost(ctx, args ?? {}); return { text: r.undone ? `Repost removed.` : `Posted #${r.id}: ${r.url}`, data: r }; }
       case "community_feed": {
         const viewer = ctx.agentId ? `agent:${ctx.agentId}` : ctx.walletKey;

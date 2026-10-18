@@ -49,3 +49,6 @@ create table if not exists follows(follower_key text, followee_key text, ts time
 create table if not exists a2a_subs(subscriber_key text, agent_id uuid, autotrade bool default false, max_lamports bigint default 0, daily_lamports bigint default 0, ts timestamptz default now(), primary key(subscriber_key, agent_id));
 create table if not exists a2a_exec(id bigserial primary key, post_id bigint, subscriber_key text, side text, lamports bigint, sig text, ok bool, error text, ts timestamptz default now(), unique(post_id, subscriber_key));
 create table if not exists llm_keys(owner_key text primary key, provider text not null, model text, ciphertext bytea, iv bytea, wrapped_dek bytea, dek_iv bytea, updated_at timestamptz default now());
+alter table bot_orders add column if not exists pay_ref text; alter table bot_orders add column if not exists pay_to text; alter table bot_orders add column if not exists pay_expires_at timestamptz;
+create unique index if not exists bot_orders_pay_ref on bot_orders(pay_ref) where pay_ref is not null;
+create unique index if not exists bot_orders_pay_sig on bot_orders(pay_sig) where pay_sig is not null;

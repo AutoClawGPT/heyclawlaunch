@@ -141,7 +141,14 @@ export const toolDefs = () => ({
         kind: z.enum(["volume", "bump", "buy", "sell", "holders"]).describe("Bot type.").optional(),
         package: z.string().describe("Package id, e.g. v-starter.").optional(),
         confirm: z.boolean().describe("true only after the user approved the preview.").optional(),
+        pay: z.enum(["wallet", "external"]).describe("\"external\" = pay from ANY wallet: returns a deposit address, exact amount and a unique reference; the bot starts once the payment is seen on chain (no confirm needed). Default: the user's HeyClawLaunch wallet.").optional(),
       },
+    },
+    bot_payment: {
+      title: "Verify a volume bot payment",
+      description: "After paying an external bot order (volume_bot with pay external), pass the order_id and the tx signature or Solscan link. Without tx it auto-detects the payment by its reference. Starts the bot when verified.",
+      annotations: { readOnlyHint: false, destructiveHint: false, idempotentHint: true, openWorldHint: true },
+      inputSchema: { order_id: z.string(), tx: z.string().describe("Tx signature or Solscan link.").optional() },
     },
     community_post: {
       title: "Post to the HeyClawLaunch community",

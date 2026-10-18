@@ -45,7 +45,8 @@ export async function botMarkets(filter: "new" | "graduating" | "graduated" | "a
 }
 
 /** Preview → confirm. On confirm, pays the package price from the user's custodial wallet to the launch wallet and queues the order. */
-export async function orderBot(ctx: any, a: { mint: string; kind: string; package: string; confirm?: boolean }) {
+export async function orderBot(ctx: any, a: { mint: string; kind: string; package: string; confirm?: boolean; pay?: string }) {
+  if (a.pay === "external") return orderBotExternal(ctx, a);
   const key = need(ctx); const p = findPkg(a.kind, a.package); const kind = a.kind as Kind;
   let mint: PublicKey; try { mint = new PublicKey(a.mint); } catch { throw new UserError("That isn't a valid mint address."); }
   const [coin] = await sql`select name, ticker, owner_key, quote_mint from launches where mint=${mint.toBase58()}`;
@@ -58,7 +59,7 @@ export async function orderBot(ctx: any, a: { mint: string; kind: string; packag
   if (lw + p.price - p.capital < RESERVE) throw new UserError("Bot capacity is used up right now (the platform wallet is at its reserve). Try again later.");
   const [{ n }] = await sql`select count(*)::int n from bot_orders where status in ('queued','running')`; if (n >= MAX_ACTIVE) throw new UserError("All bot slots are busy. Try again in a few minutes.");
   const preview = `PREVIEW: ${KINDS[kind].title} · ${p.name} on $${coin.ticker} (${coin.name})\n${p.blurb}\nprice: ${fmt(p.price)} devnet SOL from your wallet ${wallet.toBase58()} (balance ${fmt(bal)})\n${p.volume ? `target volume: ~${fmt(p.volume)} SOL · ` : ""}${p.trades} ${kind === "holders" ? "new holders" : "trades"}\nruns on: pump.fun bonding curve (${cfg.cluster}), real transactions`;
-  if (bal < p.price + 5_000_000n) throw new UserError(`${preview}\n\nNot enough SOL: you need ${fmt(p.price + 5_000_000n)} SOL (price + fees). Fund your wallet first.`);
+  if (bal < p.price + 5_000_000n) throw new UserError(`${preview}\n\nNot enough SOL: you need ${fmt(p.price + 5_000_000n)} SOL (price + fees). Fund your wallet, or pay from any wallet: call again with pay: \"external\" to get a deposit address, exact amount and a unique reference.`);
   const opId = await previewGate(key, "bot", { mint: mint.toBase58(), kind, pkg: p.id }, a.confirm);
   if (!opId) return { text: `${preview}\nConfirm to pay and start.`, preview: true };
   const paySig = await withCustodialSigner(key, kp => sendSol(kp, launchWallet().publicKey, p.price));
@@ -133,3 +134,43 @@ export async function botFeed(limit = 40, mint?: string) {
 }
 export async function myBotOrders(ownerKey: string) { return sql`select o.*, l.ticker, l.name from bot_orders o left join launches l on l.mint=o.mint where o.owner_key=${ownerKey} order by o.created_at desc limit 20`; }
 export const _SOL = SOL;
+
+// ---------- Pay from any wallet: deposit address + exact amount + unique reference (Solana Pay style), verified on chain ----------
+const PAY_TTL_MIN = 30;
+export async function orderBotExternal(ctx: any, a: { mint: string; kind: string; package: string }) {
+  const owner = ctx.walletKey ?? ctx.ownerKey; const p = findPkg(a.kind, a.package); const kind = a.kind as Kind;
+  if (kind === "sell") throw new UserError("Sell bots sell tokens from your own wallet, so they need your HeyClawLaunch wallet. Pick another bot.");
+  let mint: PublicKey; try { mint = new PublicKey(a.mint); } catch { throw new UserError("That isn't a valid mint address."); }
+  const [coin] = await sql`select name, ticker, quote_mint from launches where mint=${mint.toBase58()}`;
+  if (!coin) throw new UserError(`Volume bots only run on coins launched on ${cfg.brand}.`);
+  const ci: any = await coinInfo(mint.toBase58()).catch(() => null); if (ci?.curve?.complete) throw new UserError("This coin graduated off the bonding curve; bots run on curve coins.");
+  const ref = (await import("@solana/web3.js")).Keypair.generate().publicKey.toBase58(); const to = launchWallet().publicKey.toBase58();
+  const [o] = await sql`insert into bot_orders(owner_key,mint,kind,package,price_lamports,target_volume_lamports,max_trades,status,pay_ref,pay_to,pay_expires_at) values(${owner},${mint.toBase58()},${kind},${p.id},${p.price.toString()},${p.volume.toString()},${p.trades},'awaiting_payment',${ref},${to},now() + make_interval(mins => ${PAY_TTL_MIN})) returning id`;
+  const amount = Number(p.price) / 1e9;
+  const url = `solana:${to}?amount=${amount}&reference=${ref}&label=${encodeURIComponent(cfg.brand)}&message=${encodeURIComponent(`${p.name} bot on $${coin.ticker}`)}`;
+  return { text: `PAY FROM ANY WALLET (${cfg.cluster})\n${KINDS[kind].title} · ${p.name} on $${coin.ticker}\nsend exactly: ${amount} SOL\nto: ${to}\nreference: ${ref} (add it as a read-only account key; Solana Pay links and our Phantom button do this)\nSolana Pay: ${url}\nexpires in ${PAY_TTL_MIN} min · order ${o.id}\nAfter paying, send the tx hash or Solscan link (bot_payment with order_id + tx), or wait: we detect the payment by its reference and start the bot automatically.\nTrack it: ${cfg.appUrl}/dashboard`, orderId: o.id, payment: { order_id: o.id, to, amount_sol: amount, lamports: p.price.toString(), reference: ref, solana_pay_url: url, expires_in_min: PAY_TTL_MIN } };
+}
+/** Verifies an external payment (given tx, or auto-detected via the reference) and starts the bot. Idempotent. */
+export async function verifyBotPayment(orderId: string, tx?: string) {
+  const [o] = await sql`select * from bot_orders where id=${orderId}`;
+  if (!o || !o.pay_ref) throw new UserError("Unknown order.", 404);
+  if (o.status !== "awaiting_payment") return { status: o.status, pay_sig: o.pay_sig, text: o.pay_sig ? `Already paid: ${solscanTx(o.pay_sig)}` : `Order is ${o.status}.` };
+  let sigs: string[] = [];
+  if (tx) { const m = String(tx).match(/[1-9A-HJ-NP-Za-km-z]{80,90}/); if (!m) throw new UserError("Paste a transaction signature or a Solscan tx link."); sigs = [m[0]]; }
+  else sigs = (await conn().getSignaturesForAddress(new PublicKey(o.pay_ref), { limit: 10 })).filter(x => !x.err).map(x => x.signature);
+  if (!sigs.length) { if (new Date(o.pay_expires_at) < new Date()) await sql`update bot_orders set status='expired' where id=${o.id} and status='awaiting_payment'`; return { status: new Date(o.pay_expires_at) < new Date() ? "expired" : "awaiting_payment", text: "No payment found yet." }; }
+  let lastErr = "";
+  for (const sig of sigs) {
+    const t = await conn().getParsedTransaction(sig, { maxSupportedTransactionVersion: 0, commitment: "confirmed" });
+    if (!t) { lastErr = "Transaction not found or not confirmed yet."; continue; }
+    if (t.meta?.err) { lastErr = "That transaction failed on chain."; continue; }
+    const keys = t.transaction.message.accountKeys.map((k: any) => (k.pubkey ?? k).toBase58());
+    if (!keys.includes(o.pay_ref)) { lastErr = "That transaction doesn't carry this order's reference."; continue; }
+    const paid = t.transaction.message.instructions.filter((i: any) => i.program === "system" && i.parsed?.type === "transfer" && i.parsed.info.destination === o.pay_to).reduce((s: number, i: any) => s + Number(i.parsed.info.lamports), 0);
+    if (BigInt(paid) < BigInt(o.price_lamports)) { lastErr = `Paid ${paid / 1e9} SOL, need ${Number(o.price_lamports) / 1e9} SOL.`; continue; }
+    const [used] = await sql`select id from bot_orders where pay_sig=${sig}`; if (used) { lastErr = "That transaction was already used for another order."; continue; }
+    const [u] = await sql`update bot_orders set status='queued', pay_sig=${sig}, updated_at=now() where id=${o.id} and status='awaiting_payment' returning id`;
+    if (u) return { status: "queued", pay_sig: sig, text: `Payment verified (${solscanTx(sig)}). The bot starts within seconds. Track it at ${cfg.appUrl}/dashboard` };
+  }
+  throw new UserError(lastErr || "Payment not valid.");
+}

@@ -139,7 +139,7 @@ export const toolDefs = () => ({
       inputSchema: {
         mint: z.string().describe("Coin mint address.").optional(),
         kind: z.enum(["volume", "bump", "buy", "sell", "holders"]).describe("Bot type.").optional(),
-        package: z.string().describe("Package id, e.g. v-starter.").optional(),
+        package: z.string().describe("Package id, e.g. v-02.").optional(),
         confirm: z.boolean().describe("true only after the user approved the preview.").optional(),
         pay: z.enum(["wallet", "external"]).describe("\"external\" = pay from ANY wallet: returns a deposit address, exact amount and a unique reference; the bot starts once the payment is seen on chain (no confirm needed). Default: the user's HeyClawLaunch wallet.").optional(),
       },

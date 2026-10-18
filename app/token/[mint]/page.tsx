@@ -14,7 +14,7 @@ export const dynamic = "force-dynamic";
 import { ogMeta } from "@/lib/og";
 import { sql } from "@/lib/db";
 export async function generateMetadata({ params }: { params: Promise<{ mint: string }> }) {
-  const { mint } = await params; const [l] = await sql`select name,ticker,description from launches l left join drafts d on d.id=l.draft_id where l.mint=${mint}`.catch(() => []);
+  const { mint } = await params; const [l] = await sql`select l.name,l.ticker,d.description from launches l left join drafts d on d.id=l.draft_id where l.mint=${mint}`.catch(() => []);
   return l ? ogMeta(`${l.name} ($${l.ticker})`, (l.description || `$${l.ticker} on pump.fun, launched with HeyClawLaunch.`).slice(0, 180), `type=token&mint=${mint}`) : {};
 }
 const acct = (a: string) => `https://solscan.io/account/${a}${clusterQs()}`;

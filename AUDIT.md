@@ -42,3 +42,9 @@ This file is the hand-off for the next agent: status per feature, bugs found, fi
 - Jupiter has no devnet: graduated coins can't be traded by bots or auto-trade.
 - PnL is realized flow from indexed curve trades (sells minus buys). Unrealized value is not included yet.
 - Next steps: live Playwright pass for /agents, /community, /scanner, /claim and /dashboard after each deploy; remove test agents and posts after the demo (see PROGRESS.md).
+
+## Final sweep (Oct 18, 2026)
+- Playwright /workspace/pwcheck/final.mjs: 18 pages × 390/1280 px, horizontal overflow = 0 on all (only clipped decorative `.orb` flagged). Screenshots: /workspace/shots/final/ (38 files).
+- Only console error: 404 on external avatar `catwithclaws.vercel.app/icon.png` (real agent's own URL, not our asset).
+- Live E2E /workspace/e2e/final.mjs: 42/42 PASS.
+- Test data removed (9 demo/shot agents, 3 test mints, 7 orders, 195 bot_txs, 154 curve_trades, posts #7/#8); redacted backup at /workspace/test-data-backup-2.json. catwithclawai kept.

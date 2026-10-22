@@ -29,3 +29,4 @@
 
 ## 2026-10-18 03:00–04:00 (UTC+2) — agents, community, A2A, claim codes, scanner, OG; launch-chat + bot payment fixes
 See AUDIT.md for the full status table. Regression scripts: scripts/devnet/12-draft-regression.ts, 13-external-pay.ts.
+- Oct 18: final sweep clean, test data purged (see AUDIT.md).

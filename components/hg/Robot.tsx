@@ -3,7 +3,13 @@ import dynamic from "next/dynamic";
 import { useEffect, useRef, useState } from "react";
 import type { RobotState } from "./Robot3D";
 const R3 = dynamic(() => import("./Robot3D"), { ssr: false, loading: () => <div className="grid h-full w-full place-items-center"><img src="/heyclaw-mark.svg" alt="" className="h-20 w-20 animate-pulse opacity-60" /></div> });
-export default function Robot({ state = "idle" }: { state?: RobotState }) { return <R3 state={state} />; }
+const Ph = () => <div className="grid h-full w-full place-items-center">{/* eslint-disable-next-line @next/next/no-img-element */}<img src="/heyclaw-mark.svg" alt="" className="h-20 w-20 opacity-60" /></div>;
+/** The 3D mascot (three.js) loads only once visible and the main thread is idle, keeping it off the critical path. */
+export default function Robot({ state = "idle" }: { state?: RobotState }) {
+  const ref = useRef<HTMLDivElement>(null); const [go, setGo] = useState(false);
+  useEffect(() => { const el = ref.current; if (!el) return; const io = new IntersectionObserver(([e]) => { if (e.isIntersecting) { io.disconnect(); const ric = (window as any).requestIdleCallback ?? ((f: () => void) => setTimeout(f, 300)); ric(() => setGo(true), { timeout: 2500 }); } }, { rootMargin: "200px" }); io.observe(el); return () => io.disconnect(); }, []);
+  return <div ref={ref} className="h-full w-full">{go ? <R3 state={state} /> : <Ph />}</div>;
+}
 /** Derives the mascot state from the chat: thinking while the brain works, talking right after a reply lands, celebrating on a live launch. */
 export function useMascot(r: { busy: boolean; listening: boolean; messages: { role: string }[]; ui: { live?: unknown } }): RobotState {
   const [talk, setTalk] = useState(false); const [cel, setCel] = useState(false);

@@ -14,13 +14,14 @@ export const viewport: Viewport = { themeColor: "#07080d", width: "device-width"
 const tg = process.env.TELEGRAM_BOT_USERNAME ?? "HeyClawLaunchBot";
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
-    <html lang="en" className={`${head.variable} ${body.variable} ${code.variable}`}>
+    <html lang="en" suppressHydrationWarning className={`${head.variable} ${body.variable} ${code.variable}`}>
+      <head><script dangerouslySetInnerHTML={{ __html: `try{var s=localStorage.getItem("sb");document.documentElement.dataset.sb=innerWidth>=1024&&s!=="closed"?"open":"closed"}catch(e){}` }} /></head>
       <body>
         <Providers>
           <Backdrop />
           <Header cluster={cfg.cluster} tg={tg} />
-          <div className="min-h-[60vh]">{children}</div>
-          <Footer cluster={cfg.cluster} tg={tg} />
+          <div className="shell"><div className="min-h-[60vh]">{children}</div>
+          <Footer cluster={cfg.cluster} tg={tg} /></div>
         </Providers>
       </body>
     </html>

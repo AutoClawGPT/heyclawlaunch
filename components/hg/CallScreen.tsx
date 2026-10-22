@@ -44,7 +44,7 @@ export default function CallScreen() {
           </div></div>
         </section>
       </div>
-      <p className="mono mt-10 border-t border-[var(--line)] pt-5 text-[11.5px] text-[var(--muted)]">Launches are permanent and free: HeyClawLaunch pays the SOL, never a dev buy. Independent project, not affiliated with xAI. Not financial advice.</p>
+      <p className="mono mt-6 border-t border-[var(--line)] pt-5 text-[11.5px] text-[var(--muted)]">Launches are permanent and free: HeyClawLaunch pays the SOL, never a dev buy. Independent project, not affiliated with xAI. Not financial advice.</p>
     </main>);
 }
 export function RobotCard() {

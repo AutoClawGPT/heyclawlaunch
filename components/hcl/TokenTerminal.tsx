@@ -1,12 +1,13 @@
 "use client";
 // pump.fun / DexScreener-style coin page (spec: FIXPLAN.md "Oct 23 UI").
 // Every number is the exact devnet on-chain curve/pool value × live SOL/USD.
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { createChart, CandlestickSeries, HistogramSeries, ColorType, type IChartApi, type ISeriesApi, type UTCTimestamp } from "lightweight-charts";
 import SafeImg from "@/components/hg/SafeImg";
 import { ago, sol } from "./ui";
+import CallMarkers, { type CallMark } from "./CallMarkers";
 import { priceSub, usdCompact, numCompact, pct, shortAddr, agoS } from "@/lib/fmt";
 export type TokenProps = { mint: string; snapAt?: number; name: string; ticker: string; logo: string | null; pair: string; supply: number; priceQuote: number | null; usdPerQuote: number | null;
   complete: boolean; progress: number; liqQuote: number; holders: number | null; pool?: string | null; creator?: string | null; launchedAt?: string | null;
@@ -52,7 +53,7 @@ export default function TokenTerminal(p: TokenProps) {
         </div>
       </section>
       {/* B. chart */}
-      <Chart d={d} iv={iv} setIv={setIv} ccy={ccy} setCcy={setCcy} mode={mode} setMode={setMode} supply={p.supply} q={q} ticker={p.ticker} priceUsd={priceUsd} chg={chg24} />
+      <Chart d={d} iv={iv} setIv={setIv} ccy={ccy} setCcy={setCcy} mode={mode} setMode={setMode} supply={p.supply} q={q} ticker={p.ticker} priceUsd={priceUsd} chg={chg24} calls={ts?.calls} />
       {/* mobile: trade + stats right under the chart */}
       <div className="flex flex-col gap-3 lg:hidden"><TradePanel {...p} usd={usd} /><Stats ts={ts} usd={usd} price={pq} /><Curve {...p} liqUsd={liqUsd} mcapUsd={mcapUsd} /></div>
       <LiveTrades d={raw} />
@@ -68,7 +69,7 @@ export default function TokenTerminal(p: TokenProps) {
   </div>;
 }
 
-function Chart({ d, iv, setIv, ccy, setCcy, mode, setMode, supply, q, ticker, priceUsd, chg }: any) {
+function Chart({ d, iv, setIv, ccy, setCcy, mode, setMode, supply, q, ticker, priceUsd, chg, calls }: any) {
   const el = useRef<HTMLDivElement>(null); const chart = useRef<IChartApi | null>(null); const cs = useRef<ISeriesApi<"Candlestick"> | null>(null); const vs = useRef<ISeriesApi<"Histogram"> | null>(null); const fit = useRef("");
   useEffect(() => {
     if (!el.current) return;
@@ -84,6 +85,9 @@ function Chart({ d, iv, setIv, ccy, setCcy, mode, setMode, supply, q, ticker, pr
     vs.current?.setData(d.candles.map((k: any) => ({ time: k.time as UTCTimestamp, value: k.volume * vm, color: k.close >= k.open ? "rgba(60,227,155,.4)" : "rgba(255,90,110,.4)" })));
     const key = `${iv}${ccy}${mode}`; if (fit.current !== key && d.candles.length) { chart.current?.timeScale().fitContent(); fit.current = key; }
   }, [d, ccy, mode, supply, iv]);
+  const mm = (ccy === "usd" && d?.usd_per_quote ? d.usd_per_quote : 1) * (mode === "mcap" ? supply : 1);
+  const bars = useMemo(() => (d?.candles ?? []).map((k: any) => ({ time: k.time, high: k.high * mm })), [d, mm]);
+  const marks = useMemo<CallMark[]>(() => (calls ?? []).map((c: any) => ({ id: c.id, t: Math.floor(+new Date(c.created_at) / 1000), name: c.author, avatar: c.avatar, href: c.url })), [calls]);
   const last = d?.candles?.at(-1); const m = (ccy === "usd" && d?.usd_per_quote ? d.usd_per_quote : 1) * (mode === "mcap" ? supply : 1);
   const fmt = (v: number) => ccy === "usd" ? (mode === "mcap" ? usdCompact(v) : priceSub(v)) : (mode === "mcap" ? numCompact(v, 2) + " " + q : priceSub(v, "") + " " + q);
   return <section className="card p-3 sm:p-4" data-sec="chart">
@@ -95,7 +99,7 @@ function Chart({ d, iv, setIv, ccy, setCcy, mode, setMode, supply, q, ticker, pr
         <div className="seg">{(["price", "mcap"] as const).map(x => <button key={x} data-on={x === mode ? "1" : "0"} onClick={() => setMode(x)}>{x === "mcap" ? "MCap" : "Price"}</button>)}</div>
         <div className="seg">{(["usd", "quote"] as const).map(x => <button key={x} data-on={x === ccy ? "1" : "0"} onClick={() => setCcy(x)}>{x === "usd" ? "USD" : q}</button>)}</div></div>
     </div>
-    <div className="relative mt-3 h-[300px] sm:h-[420px]"><div ref={el} className="absolute inset-0" />{d?.initial && <div className="pointer-events-none absolute left-2 top-1 text-[11.5px] text-[var(--muted)]">No trades yet</div>}</div>
+    <div className="relative mt-3 h-[300px] sm:h-[420px]"><div ref={el} className="absolute inset-0" /><CallMarkers chart={chart} series={cs} bars={bars} marks={marks} />{d?.initial && <div className="pointer-events-none absolute left-2 top-1 text-[11.5px] text-[var(--muted)]">No trades yet</div>}</div>
   </section>;
 }
 

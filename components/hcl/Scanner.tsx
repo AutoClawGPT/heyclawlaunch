@@ -6,6 +6,8 @@ const s = (n: number) => `${Number(n.toFixed(6))} SOL`;
 export default function Scanner({ initial, connected }: { initial: string; connected: string | null }) {
   const [w, setW] = useState(initial); const [d, setD] = useState<any>(null); const [err, setErr] = useState(""); const [busy, setBusy] = useState(false);
   const go = async (x = w) => { if (!x) return; setBusy(true); setErr(""); try { const r = await fetch(`/api/scan?wallet=${encodeURIComponent(x)}`); const j = await r.json(); if (!r.ok) throw new Error(j.error); setD(j); history.replaceState(null, "", `/scanner?wallet=${x}`); } catch (e: any) { setErr(e.message); setD(null); } finally { setBusy(false); } };
+  // run once on mount for a ?wallet= deep link
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   useEffect(() => { if (initial) go(initial); }, []);
   return (<div>
     <form className="flex flex-wrap gap-2" onSubmit={e => { e.preventDefault(); go(); }}><input className="input mono flex-1 min-w-[260px] !h-12" placeholder="Solana wallet address" value={w} onChange={e => setW(e.target.value.trim())} /><button className="btn-primary !h-12" disabled={busy || !w}>{busy ? "Scanning…" : "Scan"}</button>{connected && connected !== w && <button type="button" className="btn-ghost !h-12" onClick={() => { setW(connected); go(connected); }}>Use my wallet</button>}</form>

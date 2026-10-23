@@ -2,6 +2,8 @@ import Link from "next/link";
 import { listCoins } from "@/lib/core/market";
 import { sql } from "@/lib/db";
 import CoinTable from "@/components/hg/CoinTable";
+import { ogMeta } from "@/lib/og";
+export const metadata = ogMeta("Explore coins", "Every pump.fun coin launched on HeyClawLaunch: live prices, volume and trades.", "type=home");
 export const dynamic = "force-dynamic";
 type SP = { fee?: string; sort?: string; pair?: string; q?: string };
 const on = "border px-2.5 py-1 transition-colors border-[var(--accent)] text-[var(--accent)]", off = "border px-2.5 py-1 transition-colors border-transparent text-[var(--muted)] hover:text-[var(--fg)]";

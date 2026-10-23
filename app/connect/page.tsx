@@ -1,5 +1,7 @@
 import CopyBox from "@/components/hg/CopyBox";
 import { cfg } from "@/lib/config";
+import { ogMeta } from "@/lib/og";
+export const metadata = ogMeta("Connect your AI", "Add HeyClawLaunch to Claude, ChatGPT, Cursor or any MCP client and launch coins by chatting.", "type=agents");
 export default function Connect() {
   const u = `${cfg.appUrl}/mcp`, w = `${cfg.appUrl}/mcp/wallet`, n = cfg.brand.toLowerCase();
   const blocks: [string, string][] = [

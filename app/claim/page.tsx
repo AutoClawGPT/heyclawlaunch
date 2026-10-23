@@ -7,6 +7,8 @@ import ClaimPanel from "@/components/hcl/ClaimPanel";
 import WalletActions from "@/components/WalletActions";
 import { RobotCard } from "@/components/hg/CallScreen";
 import { cfg } from "@/lib/config";
+import { ogMeta } from "@/lib/og";
+export const metadata = ogMeta("Claim creator fees", "Claim the creator fees of your HeyClawLaunch coins with your wallet or claim code.", "type=home");
 export const dynamic = "force-dynamic";
 export default async function Claim() {
   const w = `${cfg.appUrl}/mcp/wallet`;

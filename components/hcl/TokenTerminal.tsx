@@ -6,8 +6,9 @@ import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { createChart, CandlestickSeries, HistogramSeries, ColorType, type IChartApi, type ISeriesApi, type UTCTimestamp } from "lightweight-charts";
 import SafeImg from "@/components/hg/SafeImg";
+import { ago, sol } from "./ui";
 import { priceSub, usdCompact, numCompact, pct, shortAddr, agoS } from "@/lib/fmt";
-export type TokenProps = { mint: string; name: string; ticker: string; logo: string | null; pair: string; supply: number; priceQuote: number | null; usdPerQuote: number | null;
+export type TokenProps = { mint: string; snapAt?: number; name: string; ticker: string; logo: string | null; pair: string; supply: number; priceQuote: number | null; usdPerQuote: number | null;
   complete: boolean; progress: number; liqQuote: number; holders: number | null; pool?: string | null; creator?: string | null; launchedAt?: string | null;
   description?: string | null; x?: string | null; website?: string | null; telegram?: string | null; shares?: { address: string; bps: number }[]; feeTo: string; curve?: string | null; createSig?: string | null };
 const IVS = ["1m", "5m", "15m", "1h", "4h", "1d"];
@@ -24,13 +25,15 @@ function Copy({ v }: { v: string }) { const [ok, setOk] = useState(false); retur
 
 export default function TokenTerminal(p: TokenProps) {
   const router = useRouter();
-  useEffect(() => { const id = setInterval(() => router.refresh(), 12000); return () => clearInterval(id); }, [router]); // re-read curve/pool on chain
+  useEffect(() => { const id = setInterval(() => router.refresh(), 4000); return () => clearInterval(id); }, [router]); // re-read curve/pool on chain
   const [iv, setIv] = useState("1m"); const [ccy, setCcy] = useState<"usd" | "quote">("usd"); const [mode, setMode] = useState<"mcap" | "price">("mcap");
-  const raw = usePoll(`/api/candles/${p.mint}?interval=${SRC[iv] ?? iv}`, 3000); const d = agg(raw, iv); const ts = usePoll(`/api/tokenstats/${p.mint}`, 8000);
+  const raw = usePoll(`/api/candles/${p.mint}?interval=${SRC[iv] ?? iv}`, 3000); const d = agg(raw, iv); const ts = usePoll(`/api/tokenstats/${p.mint}`, 4000);
+  // Live price: the server snapshot (curve/pool reserves) until a newer indexed trade arrives via the 3s feed, then that trade's exact devnet price.
+  const lt = raw?.trades?.[0]; const pq: number | null = lt?.price && +new Date(lt.ts) > (p.snapAt ?? 0) - 2000 ? lt.price : p.priceQuote;
   const usd: number | null = d?.usd_per_quote ?? p.usdPerQuote; const q = p.pair;
-  const priceUsd = p.priceQuote != null && usd ? p.priceQuote * usd : null; const mcapUsd = priceUsd != null ? priceUsd * p.supply : null;
+  const priceUsd = pq != null && usd ? pq * usd : null; const mcapUsd = priceUsd != null ? priceUsd * p.supply : null;
   const athUsd = ts?.ath && usd ? Math.max(ts.ath * usd * p.supply, mcapUsd ?? 0) : mcapUsd;
-  const w24 = ts?.windows?.["24h"]; const chg24 = w24?.open && p.priceQuote ? ((p.priceQuote - w24.open) / w24.open) * 100 : ts ? 0 : null;
+  const w24 = ts?.windows?.["24h"]; const chg24 = w24?.open && pq ? ((pq - w24.open) / w24.open) * 100 : ts ? 0 : null;
   const v24 = (w24?.buy_vol ?? 0) + (w24?.sell_vol ?? 0); const liqUsd = usd ? p.liqQuote * usd : null;
   const [tab, setTab] = useState<"trades" | "holders" | "comments">("comments");
   const socials = [p.x && ["X", p.x.startsWith("http") ? p.x : `https://x.com/${p.x.replace(/^@/, "")}`], p.website && ["Web", p.website], p.telegram && ["TG", p.telegram.startsWith("http") ? p.telegram : `https://t.me/${p.telegram.replace(/^@/, "")}`]].filter(Boolean) as [string, string][];
@@ -51,15 +54,16 @@ export default function TokenTerminal(p: TokenProps) {
       {/* B. chart */}
       <Chart d={d} iv={iv} setIv={setIv} ccy={ccy} setCcy={setCcy} mode={mode} setMode={setMode} supply={p.supply} q={q} ticker={p.ticker} priceUsd={priceUsd} chg={chg24} />
       {/* mobile: trade + stats right under the chart */}
-      <div className="flex flex-col gap-3 lg:hidden"><TradePanel {...p} usd={usd} /><Stats ts={ts} usd={usd} price={p.priceQuote} /><Curve {...p} liqUsd={liqUsd} mcapUsd={mcapUsd} /></div>
-      <Calls list={ts?.calls} usd={usd} supply={p.supply} price={p.priceQuote} />
+      <div className="flex flex-col gap-3 lg:hidden"><TradePanel {...p} usd={usd} /><Stats ts={ts} usd={usd} price={pq} /><Curve {...p} liqUsd={liqUsd} mcapUsd={mcapUsd} /></div>
+      <LiveTrades d={raw} />
+      <Calls list={ts?.calls} usd={usd} supply={p.supply} price={pq} />
       {/* G. tabs */}
       <section className="card overflow-hidden" data-sec="tabs">
         <div className="flex items-center gap-1 border-b border-[var(--line)] px-2 pt-2">{(["comments", "trades", "holders"] as const).map(t => <button key={t} onClick={() => setTab(t)} className={"px-3 pb-2 text-[13.5px] font-semibold capitalize " + (tab === t ? "border-b-2 border-[var(--accent)] text-[var(--fg)]" : "text-[var(--muted)] hover:text-[var(--fg)]")}>{t === "comments" ? "Thread" : t === "holders" ? "Top holders" : "Trades"}{t === "holders" && p.holders != null ? <span className="ml-1.5 text-[11px] text-[var(--muted)]">{p.holders}</span> : t === "comments" && ts?.comments?.length ? <span className="ml-1.5 text-[11px] text-[var(--muted)]">{ts.comments.length}</span> : null}</button>)}</div>
         {tab === "trades" ? <Trades d={d} usd={usd} q={q} ticker={p.ticker} /> : tab === "holders" ? <Holders mint={p.mint} creator={p.creator} priceUsd={priceUsd} /> : <Comments list={ts?.comments} ticker={p.ticker} />}
       </section>
     </div>
-    <aside className="hidden flex-col gap-3 lg:flex"><TradePanel {...p} usd={usd} /><Stats ts={ts} usd={usd} price={p.priceQuote} /><Curve {...p} liqUsd={liqUsd} mcapUsd={mcapUsd} /><Info {...p} /></aside>
+    <aside className="hidden flex-col gap-3 lg:flex"><TradePanel {...p} usd={usd} /><Stats ts={ts} usd={usd} price={pq} /><Curve {...p} liqUsd={liqUsd} mcapUsd={mcapUsd} /><Info {...p} /></aside>
     <div className="lg:hidden"><Info {...p} /></div>
   </div>;
 }
@@ -190,4 +194,9 @@ function Calls({ list, usd, supply, price }: { list?: any[]; usd: number | null;
         <span className="mono text-right text-[12px] tabular-nums"><span className="text-[var(--muted)]">{usdCompact(at)} → </span>{usdCompact(now)} {x != null && <b className={"ml-1 rounded-md px-1.5 py-0.5 " + (up ? "bg-[#3ce39b]/15 text-[#3ce39b]" : "bg-[#ff5a6e]/15 text-[#ff5a6e]")}>{x >= 10 ? x.toFixed(0) : x.toFixed(2)}x</b>}</span>
         <p className="w-full whitespace-pre-wrap break-words text-[13px] text-[var(--fg-2)]">{c.side && c.side !== "call" && <b className={c.side === "buy" ? "up" : "down"}>{c.side.toUpperCase()} </b>}{c.body}</p></div>; })}</div>
   </section>;
+}
+
+/** Original "Live trades" feed from LiveChart (same /api/candles 3s poll, same markup): new devnet trades appear without a reload. */
+function LiveTrades({ d }: { d: any }) {
+  return <section className="card p-4" data-sec="live-trades" data-testid="live-trades"><div className="eyebrow"><span className="live-dot"></span>Live trades</div><div className="mt-2 max-h-[280px] overflow-y-auto"><table className="w-full text-[12.5px]"><tbody>{!d?.trades?.length ? <tr><td className="py-3 text-[var(--muted)]">No trades yet.</td></tr> : d.trades.map((t: any) => <tr key={t.sig} className="row"><td className={"py-2 pr-3 " + (t.side === "buy" ? "up" : "down")}>{t.side}</td><td className="py-2 pr-3 mono">{sol(t.sol, 4)}</td><td className="py-2 pr-3 mono text-[var(--fg-2)]">{t.tokens ? Math.round(t.tokens).toLocaleString() : ""}</td><td className="py-2 pr-3 mono text-[var(--muted)]">{t.trader.slice(0, 4)}…{t.trader.slice(-4)}</td><td className="py-2 text-right"><a className="mono text-[var(--muted)] hover:text-[var(--accent)]" target="_blank" rel="noreferrer" href={`https://solscan.io/tx/${t.sig}?cluster=devnet`}>{ago(t.ts)} ↗</a></td></tr>)}</tbody></table></div></section>;
 }

@@ -10,7 +10,8 @@ import { PublicKey } from "@solana/web3.js";
 import { short, ago } from "@/lib/core/market";
 import { CoinImg } from "@/components/hg/CoinTable";
 import CopyBtn from "@/components/hg/CopyBtn";
-export const dynamic = "force-dynamic";
+export const revalidate = 10; // ISR: the chart/feed refresh client-side
+export async function generateStaticParams() { return []; } // on-demand ISR per mint
 import { ogMeta } from "@/lib/og";
 import { sql } from "@/lib/db";
 export async function generateMetadata({ params }: { params: Promise<{ mint: string }> }) {

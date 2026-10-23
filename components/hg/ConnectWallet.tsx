@@ -1,7 +1,8 @@
 "use client";
 import { useEffect, useState } from "react";
 import Link from "next/link";
-import SignIn from "@/components/SignIn";
+import dynamic from "next/dynamic";
+const SignIn = dynamic(() => import("@/components/SignIn"), { ssr: false }); // wallet-standard loads only when the sign-in sheet opens
 /** Header wallet button: Phantom / Solflare / Backpack via Wallet Standard + Sign-In-With-Solana. */
 export default function ConnectWallet() {
   const [me, setMe] = useState<any>(null); const [open, setOpen] = useState(false);

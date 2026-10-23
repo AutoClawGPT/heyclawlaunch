@@ -24,7 +24,7 @@ export const KINDS: Record<Kind, { title: string; desc: string; pkgs: Pkg[] }> =
   bump: { title: "Bump bot", desc: "Tiny buy + sell pairs that keep the coin at the top of “recent trades”.", pkgs: mk("b", t => { const bumps = Math.round(t * 250), size = 0.003; return { trades: bumps * 2, volume: L(bumps * 2 * size), tradeMin: L(0.0025), tradeMax: L(0.0035), capital: L(0.012), blurb: `${bumps} bumps` }; }) },
   buy: { title: "Buy bot", desc: "Steady small buys: net buy pressure, the bot wallets keep the tokens.", pkgs: mk("y", t => { const spend = t * 0.7, trades = Math.round(20 * Math.sqrt(t / 0.2)), size = spend / trades; return { trades, volume: L(spend), tradeMin: L(size * 0.8), tradeMax: L(size * 1.2), capital: L(spend * 1.25 + 0.01), blurb: `${trades} buys · ~${+spend.toFixed(2)} SOL bought` }; }) },
   sell: { title: "Sell bot", desc: "Sells YOUR wallet's bag in even slices (TWAP) instead of one dump. Proceeds land in your wallet.", pkgs: mk("s", t => ({ trades: Math.round(t * 40) + 2, volume: 0n, tradeMin: 0n, tradeMax: 0n, capital: 0n, blurb: `sell your bag in ${Math.round(t * 40) + 2} slices` })) },
-  holders: { title: "Holder booster", desc: "New wallets each buy a small amount and hold it: the holder count goes up.", pkgs: mk("h", t => { const n = Math.round(t * 120); return { trades: n, volume: L(n * 0.001), tradeMin: L(0.001), tradeMax: L(0.001), capital: L(0.004), blurb: `+${n} real holders` }; }) },
+  holders: { title: "Holder booster", desc: "New wallets each buy a small amount and hold it: the holder count goes up.", pkgs: mk("h", t => { const n = Math.round(t * 120); return { trades: n, volume: L(n * 0.001), tradeMin: L(0.001), tradeMax: L(0.001), capital: L(0.007), blurb: `+${n} real holders` }; }) },
 };
 export const RESERVE = BigInt(Math.round(Number(process.env.BOT_RESERVE_SOL ?? "1") * 1e9)); // launch wallet never goes below this for bots
 const MAX_ACTIVE = 4;
@@ -121,7 +121,7 @@ export async function botTickOnce() {
         const pk = await fund(o, 0, p.capital); const amt = rnd(p.tradeMin, p.tradeMax);
         const r = await withCustodialSigner(botKey(o, 0), kp => buy(kp, mint, amt)); vol = amt; await log(o, "buy", amt, pk.toBase58(), r.sig);
       } else if (o.kind === "holders") {
-        const i = o.trades + 1; const pk = await fund(o, i, 4_000_000n); // ATA rent + buy + fees
+        const i = o.trades + 1; const pk = await fund(o, i, 7_000_000n); // ATA rent + pump volume-accumulator rent + buy + fees; payer must stay rent-exempt
         const r = await withCustodialSigner(botKey(o, i), kp => buy(kp, mint, p.tradeMin)); vol = p.tradeMin; await log(o, "buy", p.tradeMin, pk.toBase58(), r.sig);
         const left = BigInt(await conn().getBalance(pk)); if (left > 10_000n) { const s = await withCustodialSigner(botKey(o, i), kp => sendSol(kp, launchWallet().publicKey, left - 5000n)).catch(() => null); if (s) await log(o, "sweep", left - 5000n, pk.toBase58(), s); }
       } else if (o.kind === "sell") {

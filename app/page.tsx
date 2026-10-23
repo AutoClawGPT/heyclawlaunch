@@ -4,7 +4,7 @@ import CoinTable, { Marquee, Section } from "@/components/hg/CoinTable";
 import { RobotCard } from "@/components/hg/CallScreen";
 import CopyBox from "@/components/hg/CopyBox";
 import { cfg } from "@/lib/config";
-export const dynamic = "force-dynamic";
+export const revalidate = 20; // ISR: public market data, no per-user content
 export default async function Home() {
   const [coins, s] = await Promise.all([listCoins({ limit: 10 }), stats()]);
   const raised = coins.reduce((a, c) => a + c.raisedQuote, 0);

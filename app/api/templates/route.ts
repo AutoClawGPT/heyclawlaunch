@@ -1,11 +1,12 @@
+import { limitIp } from "@/lib/ratelimit";
 import { webCtx } from "@/lib/core/web-ctx";
 import { listTemplates, draftFromTemplate } from "@/lib/core/templates";
 import { confirmLaunch } from "@/lib/core/launch";
 import { summary } from "@/lib/core/drafts";
 import { UserError } from "@/lib/core/validate";
 export const runtime = "nodejs"; export const dynamic = "force-dynamic"; export const maxDuration = 120;
-export async function GET() { return Response.json({ templates: await listTemplates() }); }
-export async function POST(req: Request) {
+export async function GET() { return Response.json({ templates: await listTemplates() }, { headers: { "cache-control": "public, s-maxage=60, stale-while-revalidate=600" } }); }
+export async function POST(req: Request) { { const busy = await limitIp(req, "tpl-w", 20, 60); if (busy) return busy; }
   const b = await req.json().catch(() => ({})); const ctx = await webCtx();
   try {
     if (!ctx.walletKey) throw new UserError("Sign in to launch a template: it launches from your own wallet and the 80% creator fees go to it.");

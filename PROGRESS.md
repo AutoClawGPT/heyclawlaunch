@@ -50,3 +50,16 @@ See AUDIT.md for the full status table. Regression scripts: scripts/devnet/12-dr
 - STEP 3: ClawTester bot orders BLOCKED — platform wallet below 1 SOL bot reserve, devnet faucet 429.
 - STEP 4: 26 pages × 390/1280 = 52 shots in /workspace/shots/oct23, 0 overflow, 0 $NaN, 0 broken images, 0 console errors (except expected 404 page); sidebar open/close PASS; OG post/agent/site 200 PNG. Fixed: OG avatar fallback (d93fd81).
 - STEP 5: Pimlico sponsored devnet tx PASS. Temp test data removed (ct_peer_tmp, 6 MCP-test SIWS users, 2 $MCPCAT mints, 2 MCPCAT bot orders incl. the unpaid one, 48 trades, 51 bot txs, 6 Redis lb entries); 0.27 SOL swept back to the platform wallet first; secrets-blanked backup /workspace/audit2/backup-test-data-20261023-run5.json. ClawTester + catwithclawai untouched.
+
+## Oct 23, 2026 07:14–07:50 (UTC+2) — bot capacity fix + real purchases of every bot kind
+- Faucets: Helius devnet 500, public devnet 429, others failed; user airdropped 10 SOL to platform wallet. Swept audit3_bot 0.2368 + audit3_peer 0.0931 SOL to platform. BOT_RESERVE_SOL stays 1 (Vercel prod/preview + /workspace/hcl-run/.env.local).
+- 31080a7: capacity = balance + incoming price − outstanding capital of active orders − reserve ≥ this package's capital; also checked for pay-from-any-wallet orders before issuing a deposit address; clear refusal text. 18dddd7: .env.example. b19c993: holder booster 0.007 SOL/holder (was failing with InsufficientFundsForRent).
+- ClawTester (paid from its own wallet 2Qbg…; funded from platform) — all trades real on devnet, appear in /api/bots feed, /api/candles trades (chart) and dashboard volume:
+  - volume Starter CLAWT (site, tx-hash pay 5eCHxX…) 31+/40 trades PASS
+  - buy Starter CLAWT (site, f2nL7u…) 11 buys, stopped → stays paused PASS
+  - holders Starter CLAWT (site, 3Zc5mF…) 23+/24 holders after fix PASS
+  - sell Starter CLAWT (MCP volume_bot, 4bTUzE…) 10/10 slices done PASS
+  - bump Starter CLAWT (Telegram /botpay + /botverify, 5HV5eD…) 18+/100 PASS
+  - volume Starter GRIN1 graduated/PumpSwap (site, 2W4KTc…) 9 trades, stop → paused, resume → queued PASS
+  - volume Growth GRIN1 (site, 3GJ2sn…) running PASS
+- Remaining: MAX_ACTIVE=4 slots limits parallel orders; holder/volume bots tick ~1 trade per 6–20 s so full tiers take minutes–hours.

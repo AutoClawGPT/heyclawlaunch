@@ -72,5 +72,7 @@ Sources: chat Oct 18 (23 messages, ~55 distinct asks), PROGRESS.md, AUDIT.md, Oc
 - [x] No slides/decks — done (none produced)
 - [x] catwithclawai untouched — done
 
-## Devnet budget
-Platform wallet and devnet faucet are the limit for bot tiers above Starter; see report.
+## Devnet budget / bot capacity (Oct 23 07:14)
+- [x] Bot orders refused "capacity used up" — fixed: user airdropped 10 SOL to platform wallet; audit3_bot/peer swept back (+0.33 SOL); capacity check now reserves per-order working capital (minus capital already moved to bot wallets) and the refusal says exactly what is short and that nothing was charged (31080a7). BOT_RESERVE_SOL kept at 1 (Vercel + box).
+- [x] Holder booster failed every holder (InsufficientFundsForRent) — fixed b19c993 (0.007 SOL per new holder wallet).
+- [x] Real ClawTester purchases of every bot kind (site API, MCP, Telegram harness; CLAWT + graduated GRIN1, incl. Growth tier on GRIN1) — PASS, see PROGRESS.md.

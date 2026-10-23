@@ -84,7 +84,8 @@ export async function handleMcp(req: Request, path: "/mcp" | "/mcp/wallet"): Pro
   const ctxOrRes = await resolveCtx(req, path);
   if (ctxOrRes instanceof Response) return ctxOrRes;
   const ctx = ctxOrRes;
-  const stateless = process.env.MCP_STATELESS === "1";
+  // Serverless (Vercel) instances do not share memory, so in-memory sessions break across instances: default to stateless there.
+  const stateless = process.env.MCP_STATELESS === "1" || (!!process.env.VERCEL && process.env.MCP_STATELESS !== "0");
   if (req.method === "GET" && stateless) return rpcErr(405, -32000, "Method not allowed.");
   if (req.method === "DELETE" && stateless) return rpcErr(405, -32000, "Method not allowed.");
   const pv = req.headers.get("mcp-protocol-version");

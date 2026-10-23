@@ -11,13 +11,21 @@ export function sniff(b: Uint8Array): string | null {
   return null;
 }
 const privateIp = (ip: string) => /^(10\.|127\.|0\.|169\.254\.|192\.168\.|172\.(1[6-9]|2\d|3[01])\.|::1$|fc|fd|fe80)/i.test(ip);
-async function safeFetch(url: string): Promise<Uint8Array> {
-  const u = new URL(url);
+async function safeFetch(url: string, hops = 0): Promise<Uint8Array> {
+  let u: URL;
+  try { u = new URL(url); } catch { throw new UserError("That logo link is not a valid URL."); }
   if (u.protocol !== "https:") throw new UserError("The logo link must be https:// or ipfs://.");
   const host = u.hostname;
-  const ips = isIP(host) ? [host] : (await lookup(host, { all: true })).map(a => a.address);
+  const ips = isIP(host) ? [host] : (await lookup(host, { all: true }).catch(() => { throw new UserError("Couldn't reach the logo link's host. Try another link or the upload page."); })).map(a => a.address);
   if (ips.some(privateIp)) throw new UserError("That logo link points to a private address.");
-  const r = await fetch(url, { redirect: "error", signal: AbortSignal.timeout(15000) });
+  // Follow redirects by hand (max 3) so every hop gets the same private-address check.
+  let r: Response;
+  try { r = await fetch(u, { redirect: "manual", signal: AbortSignal.timeout(15000) }); }
+  catch { throw new UserError("Couldn't download the logo (network error or timeout). Try another link or the upload page."); }
+  if (r.status >= 300 && r.status < 400 && r.headers.get("location")) {
+    if (hops >= 3) throw new UserError("The logo link redirects too many times.");
+    return safeFetch(new URL(r.headers.get("location")!, u).toString(), hops + 1);
+  }
   if (!r.ok) throw new UserError(`Couldn't download the logo (HTTP ${r.status}). Try another link or the upload page.`);
   const buf = new Uint8Array(await r.arrayBuffer());
   if (buf.length > MAX) throw new UserError("The logo must be 5 MB or less.");

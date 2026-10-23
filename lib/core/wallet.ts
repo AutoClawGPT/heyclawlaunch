@@ -9,6 +9,7 @@ import { getOrCreateCustodial, findCustodial, withCustodialSigner } from "@/lib/
 import { conn, online, distribute, transferFrom, sendV0, RENT_ZERO, curveExists, NATIVE_MINT, launchWallet } from "@/lib/solana";
 import { PUMP_SDK, getBuyV3TokenAmountFromQuoteAmount } from "@/lib/solana/pump";
 import { sha } from "./drafts";
+import { getPairs } from "./pairs";
 
 export const NOT_CONNECTED = () => `You're not connected to a ${cfg.brand} wallet here. Add the connector ${cfg.appUrl}/mcp/wallet and click Authorize once (sign in with your Solana wallet or X), or sign in at ${cfg.appUrl}/claim.`;
 export function need(ctx: Ctx) { if (!ctx.walletKey) throw new UserError(NOT_CONNECTED()); return ctx.walletKey; }
@@ -88,7 +89,8 @@ async function resolveToken(input: string | undefined, owner?: PublicKey): Promi
   if (!mint) {
     const [l] = await sql`select mint from launches where upper(ticker)=upper(${s}) order by launched_at desc limit 1`;
     if (l) mint = new PublicKey(l.mint);
-    else if (owner) for (const h of await holdings(owner)) if ((await tickerOf(h.mint))?.toUpperCase() === s.toUpperCase()) mint = new PublicKey(h.mint);
+    if (!mint) { const p = (await getPairs().catch(() => [])).find(x => x.symbol.toUpperCase() === s.toUpperCase()); if (p) mint = new PublicKey(p.mint); }
+    if (!mint && owner) for (const h of await holdings(owner)) if ((await tickerOf(h.mint))?.toUpperCase() === s.toUpperCase()) mint = new PublicKey(h.mint);
     if (!mint && cfg.cluster === "mainnet-beta") {
       const r = await fetch(`https://lite-api.jup.ag/tokens/v2/search?query=${encodeURIComponent(s)}`).then(r => r.json()).catch(() => []);
       const t = (r as any[]).find(x => x.symbol?.toUpperCase() === s.toUpperCase()); if (t) mint = new PublicKey(t.id);

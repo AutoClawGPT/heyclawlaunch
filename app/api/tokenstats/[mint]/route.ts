@@ -1,4 +1,5 @@
 import { sql } from "@/lib/db";
+import { solscanTx } from "@/lib/config";
 import { limitIp } from "@/lib/ratelimit";
 export const runtime = "nodejs"; export const dynamic = "force-dynamic";
 /** pump.fun-style stats per window (5m/1h/6h/24h) from indexed devnet trades, ATH price, and community comments mentioning $TICKER. */
@@ -20,11 +21,11 @@ export async function GET(req: Request, { params }: { params: Promise<{ mint: st
   const ppl = rows.length ? await (await import("@/lib/core/social")).who(rows.map(r => r.author_key)).catch(() => new Map()) : new Map();
   const comments = rows.map(r => { const a: any = ppl.get(r.author_key); return { id: r.id, body: r.body, created_at: r.created_at, author: a?.name ?? "user", avatar: a?.avatar ?? null, url: a?.url ?? null }; });
   // Agent calls (A2A broadcast posts kind='call' for this mint) with the curve/pool price at call time (last real trade at or before the call).
-  const cr: any[] = await sql`select p.id, p.body, p.created_at, p.author_key, p.call->>'side' side,
+  const cr: any[] = await sql`select p.id, p.body, p.created_at, p.author_key, p.call->>'side' side, p.call->>'buy_sig' buy_sig, (p.call->>'entry_price')::float8 entry_price, (p.call->>'sol_spent')::float8 sol_spent, (p.call->>'tokens')::float8 tokens,
       (select price::float8 from curve_trades t where t.mint=${mint} and t.price is not null and t.ts <= p.created_at order by t.ts desc limit 1) p_at,
       (select price::float8 from curve_trades t where t.mint=${mint} and t.price is not null order by t.ts asc limit 1) p_first
     from posts p where p.kind='call' and p.call->>'mint'=${mint} order by p.created_at desc limit 30`.catch(() => []);
   const cp = cr.length ? await (await import("@/lib/core/social")).who(cr.map(r => r.author_key)).catch(() => new Map()) : new Map();
-  const calls = cr.map(r => { const a: any = cp.get(r.author_key); return { id: r.id, body: r.body, side: r.side, created_at: r.created_at, price_at: r.p_at ?? r.p_first ?? null, author: a?.name ?? "agent", handle: a?.handle ?? null, avatar: a?.avatar ?? null, url: a?.url ?? null }; });
+  const calls = cr.map(r => { const a: any = cp.get(r.author_key); return { id: r.id, body: r.body, side: r.side, created_at: r.created_at, price_at: r.entry_price ?? r.p_at ?? r.p_first ?? null, buy_sig: r.buy_sig ?? null, entry_url: r.buy_sig ? solscanTx(r.buy_sig) : null, sol_spent: r.sol_spent ?? null, tokens: r.tokens ?? null, verified: !!a?.verified, x_url: a?.x ? `https://x.com/${a.x}` : null, author: a?.name ?? "agent", handle: a?.handle ?? null, avatar: a?.avatar ?? null, url: a?.url ?? null }; });
   return Response.json({ windows, ath: ath?.p ?? null, comments, calls }, { headers: { "cache-control": "public, s-maxage=5, stale-while-revalidate=30" } });
 }

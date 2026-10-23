@@ -88,7 +88,7 @@ function Chart({ d, iv, setIv, ccy, setCcy, mode, setMode, supply, q, ticker, pr
   }, [d, ccy, mode, supply, iv]);
   const mm = (ccy === "usd" && d?.usd_per_quote ? d.usd_per_quote : 1) * (mode === "mcap" ? supply : 1);
   const bars = useMemo(() => (d?.candles ?? []).map((k: any) => ({ time: k.time, high: k.high * mm })), [d, mm]);
-  const marks = useMemo<CallMark[]>(() => (calls ?? []).map((c: any) => ({ id: c.id, t: Math.floor(+new Date(c.created_at) / 1000), name: c.author, avatar: c.avatar, href: c.url })), [calls]);
+  const marks = useMemo<CallMark[]>(() => (calls ?? []).map((c: any) => ({ id: c.id, t: Math.floor(+new Date(c.created_at) / 1000), name: c.author, avatar: c.avatar, href: c.url, entry: c.entry_url ?? null })), [calls]);
   const last = d?.candles?.at(-1); const m = (ccy === "usd" && d?.usd_per_quote ? d.usd_per_quote : 1) * (mode === "mcap" ? supply : 1);
   const fmt = (v: number) => ccy === "usd" ? (mode === "mcap" ? usdCompact(v) : priceSub(v)) : (mode === "mcap" ? numCompact(v, 2) + " " + q : priceSub(v, "") + " " + q);
   /* header follows the selected mode/currency with the same multiplier as the y-axis and O/H/L/C (MCap → market cap, Price → price; USD is mainnet-equivalent via usd_per_quote) */
@@ -158,11 +158,17 @@ function Curve(p: TokenProps & { liqUsd: number | null; mcapUsd: number | null }
   </section>;
 }
 
+function Claimable({ mint }: { mint: string }) {
+  const f = usePoll(`/api/fees/${mint}`, 15000); if (f?.total_sol == null) return null; const s = (v: number) => `${+v.toFixed(6)} SOL`;
+  return <div className="mono mt-1.5 rounded-lg border border-[var(--line)] p-2 text-[12px]" data-testid="claimable"><div className="flex justify-between"><span className="text-[var(--muted)]">Claimable now</span><b>{s(f.total_sol)}</b></div>
+    <div className="mt-1 flex justify-between"><span className="text-[var(--muted)]">Creator {f.creator_bps / 100}%</span><span>{s(f.creator_sol)}</span></div><div className="mt-1 flex justify-between"><span className="text-[var(--muted)]">Platform {f.platform_bps / 100}%</span><span>{s(f.platform_sol)}</span></div></div>;
+}
 function Info(p: TokenProps) {
   return <section className="card p-4" data-sec="info">
     {p.description && <><div className="text-[13.5px] font-semibold">About</div><p className="mt-1.5 whitespace-pre-wrap break-words text-[13px] text-[var(--fg-2)]">{p.description}</p></>}
     <div className={"text-[13.5px] font-semibold " + (p.description ? "mt-4" : "")}>Creator rewards</div>
     <div className="mono mt-1.5 text-[12px] text-[var(--fg-2)]">{p.feeTo}</div>
+    <Claimable mint={p.mint} />
     {(p.shares ?? []).map(s => <div key={s.address} className="mono mt-1.5 flex items-center justify-between text-[12px]"><a className="hover:text-[var(--accent)]" href={acct(s.address)} target="_blank" rel="noreferrer">{shortAddr(s.address)}</a><span>{s.bps / 100}%</span></div>)}
     <div className="mt-4 text-[13.5px] font-semibold">Contract</div>
     <div className="mono mt-1.5 space-y-1.5 text-[12px]"><div className="flex justify-between"><span className="text-[var(--muted)]">Mint</span><a href={acct(p.mint)} target="_blank" rel="noreferrer" className="hover:text-[var(--accent)]">{shortAddr(p.mint)}</a></div>
@@ -196,10 +202,11 @@ function Calls({ list, usd, supply, price }: { list?: any[]; usd: number | null;
     <div className="flex items-center justify-between"><span className="text-[13.5px] font-semibold">Agent calls <span className="ml-1 text-[11px] text-[var(--muted)]">{list.length}</span></span><span className="text-[11px] text-[var(--muted)]">mcap at call → now</span></div>
     <div className="mt-2 flex flex-col">{list.map(c => { const at = c.price_at != null && usd ? c.price_at * supply * usd : null; const now = price != null && usd ? price * supply * usd : null; const x = at && now ? now / at : null; const up = (x ?? 1) >= 1;
       const who = <span className="flex min-w-0 items-center gap-2"><SafeImg src={c.avatar} size={32} rounded={16} label={c.author} /><span className="min-w-0"><span className="block truncate text-[13px] font-semibold">{c.author}</span><span className="mono block truncate text-[11px] text-[var(--muted)]">{c.handle} · {agoS(c.created_at)} ago</span></span></span>;
+      const xb = c.verified && c.x_url ? <a href={c.x_url} target="_blank" rel="noreferrer" className="text-[13px] font-bold hover:text-[var(--accent)]" aria-label="X profile">𝕏</a> : null;
       return <div key={c.id} className="flex flex-wrap items-center gap-x-3 gap-y-1.5 border-t border-[var(--line)] py-2.5 first:border-0" data-testid="agent-call">
-        {c.url ? <Link href={c.url} className="min-w-0 flex-1 hover:text-[var(--accent)]">{who}</Link> : <div className="min-w-0 flex-1">{who}</div>}
+        {c.url ? <Link href={c.url} className="min-w-0 flex-1 hover:text-[var(--accent)]">{who}</Link> : <div className="min-w-0 flex-1">{who}</div>}{xb}
         <span className="mono text-right text-[12px] tabular-nums"><span className="text-[var(--muted)]">{usdCompact(at)} → </span>{usdCompact(now)} {x != null && <b className={"ml-1 rounded-md px-1.5 py-0.5 " + (up ? "bg-[#3ce39b]/15 text-[#3ce39b]" : "bg-[#ff5a6e]/15 text-[#ff5a6e]")}>{x >= 10 ? x.toFixed(0) : x.toFixed(2)}x</b>}</span>
-        <p className="w-full whitespace-pre-wrap break-words text-[13px] text-[var(--fg-2)]">{c.side && c.side !== "call" && <b className={c.side === "buy" ? "up" : "down"}>{c.side.toUpperCase()} </b>}{c.body}</p></div>; })}</div>
+        <p className="w-full whitespace-pre-wrap break-words text-[13px] text-[var(--fg-2)]">{c.side && c.side !== "call" && <b className={c.side === "buy" ? "up" : "down"}>{c.side.toUpperCase()} </b>}{c.body}{c.entry_url && <> · <a href={c.entry_url} target="_blank" rel="noreferrer" className="mono text-[12px] text-[var(--accent)] hover:underline" data-testid="call-entry">entry tx ↗</a></>}</p></div>; })}</div>
   </section>;
 }
 

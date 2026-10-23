@@ -5,7 +5,7 @@ import { createChart, CandlestickSeries, ColorType, type IChartApi, type ISeries
 import SafeImg from "@/components/hg/SafeImg";
 import CallMarkers from "./CallMarkers";
 import { usdCompact, pct, shortAddr, agoS } from "@/lib/fmt";
-export type Callout = { id: number | string; body: string; side: string | null; created_at: string; mint: string; ticker: string; name: string; logo: string | null; price_at: number | null; price_now: number | null; supply: number; usd_per_quote: number | null; holders: number | null; bought: number; sold: number; snap_at: number };
+export type Callout = { id: number | string; body: string; side: string | null; created_at: string; mint: string; ticker: string; name: string; logo: string | null; price_at: number | null; price_now: number | null; supply: number; usd_per_quote: number | null; holders: number | null; bought: number; sold: number; snap_at: number; buy_sig?: string | null; entry_url?: string | null; sol_spent?: number | null };
 type Agent = { name: string; handle: string; avatar: string | null; x_handle?: string | null };
 const IVS: [string, string][] = [["15s", "15s"], ["1m", "1m"], ["5m", "5m"], ["All", "1h"]];
 /** pump.fun-style Callouts for an agent: caller header, called-coin card (live mcap, % since call), candles with the caller's avatar on each call, and the call post. Exact devnet prices × live SOL/USD. */
@@ -28,14 +28,14 @@ function CalloutCard({ agent, c, all }: { agent: Agent; c: Callout; all: Callout
       <span className="min-w-0 flex-1"><span className="block truncate text-[15px] font-bold">{c.name} <span className="text-[12px] font-normal text-[var(--muted)]">${c.ticker}</span></span><span className="mono block text-[12px] text-[var(--muted)]">{shortAddr(c.mint)}</span></span>
       <span className="text-right"><span className="mono block text-[16px] font-bold tabular-nums" data-testid="callout-mcap">{usdCompact(mNow)}</span>{ch != null && <span className={"mono mt-0.5 inline-block rounded-md px-1.5 py-0.5 text-[12px] font-semibold " + (up ? "bg-[#3ce39b]/15 text-[#3ce39b]" : "bg-[#ff5a6e]/15 text-[#ff5a6e]")}>{up ? "↑" : "↓"} {pct(Math.abs(ch)).replace(/^\+/, "")}</span>}</span>
     </Link>
-    <div className="px-4 pt-3 text-[12.5px] text-[var(--muted)]">{c.holders != null ? `${c.holders.toLocaleString("en-US")} holder${c.holders === 1 ? "" : "s"}` : ""}{mAt != null ? `${c.holders != null ? " · " : ""}mcap at call ${usdCompact(mAt)}` : ""}</div>
+    <div className="px-4 pt-3 text-[12.5px] text-[var(--muted)]">{c.holders != null ? `${c.holders.toLocaleString("en-US")} holder${c.holders === 1 ? "" : "s"}` : ""}{mAt != null ? `${c.holders != null ? " · " : ""}mcap at ${c.entry_url ? "entry" : "call"} ${usdCompact(mAt)}` : ""}{c.entry_url && <> · <a href={c.entry_url} target="_blank" rel="noreferrer" className="text-[var(--accent)] hover:underline" data-testid="callout-entry">entry tx ↗</a></>}</div>
     <MiniChart key={iv} d={d} supply={c.supply} agent={agent} calls={all} />
     <div className="flex items-center gap-1 px-4 pb-2"><div className="seg">{IVS.map(([k, v]) => <button key={k} data-on={v === iv ? "1" : "0"} onClick={() => setIv(v)}>{k}</button>)}</div></div>
     <div className="flex gap-3 border-t border-[var(--line)] p-4"><SafeImg src={agent.avatar} size={36} rounded={18} label={agent.name} />
       <div className="min-w-0 flex-1"><div className="text-[13.5px]"><b>{agent.name}</b> <span className="text-[var(--muted)]">· {agoS(c.created_at)} ago</span></div>
         <p className="mt-1 whitespace-pre-wrap break-words text-[14px]">{c.side && c.side !== "call" && <b className={c.side === "buy" ? "up" : "down"}>{c.side.toUpperCase()} </b>}{c.body}</p>
         <div className="mono mt-2 grid grid-cols-2 gap-2 rounded-xl border border-[var(--line)] p-3 text-[12px]"><div><div className="text-[var(--muted)]">Position</div><div>{c.bought || c.sold ? `bought ${+c.bought.toFixed(4)} SOL${c.sold ? ` · sold ${+c.sold.toFixed(4)} SOL` : ""}` : "no trades"}</div></div>
-          <div className="text-right"><div className="text-[var(--muted)]">Since call</div><div className={up ? "up" : "down"}>{ch != null ? pct(ch) : "—"}</div></div></div></div></div>
+          <div className="text-right"><div className="text-[var(--muted)]">{c.entry_url ? "Since entry" : "Since call"}</div><div className={up ? "up" : "down"}>{ch != null ? pct(ch) : "—"}</div></div></div></div></div>
   </article>;
 }
 function MiniChart({ d, supply, agent, calls }: { d: any; supply: number; agent: Agent; calls: Callout[] }) {
@@ -48,6 +48,6 @@ function MiniChart({ d, supply, agent, calls }: { d: any; supply: number; agent:
   const bars = useMemo(() => (d?.candles ?? []).map((k: any) => ({ time: k.time, high: k.high * m })), [d, m]);
   useEffect(() => { if (!d?.candles) return; cs.current?.setData(d.candles.map((k: any) => ({ time: k.time as UTCTimestamp, open: k.open * m, high: k.high * m, low: k.low * m, close: k.close * m })));
     if (!fit.current && d.candles.length) { chart.current?.timeScale().fitContent(); fit.current = true; } }, [d, m]);
-  const marks = useMemo(() => calls.map(c => ({ id: c.id, t: Math.floor(+new Date(c.created_at) / 1000), name: agent.name, avatar: agent.avatar })), [calls, agent]);
+  const marks = useMemo(() => calls.map(c => ({ id: c.id, t: Math.floor(+new Date(c.created_at) / 1000), name: agent.name, avatar: agent.avatar, entry: c.entry_url ?? null })), [calls, agent]);
   return <div className="relative mx-2 mt-1 h-[230px]"><div ref={el} className="absolute inset-0" /><CallMarkers chart={chart} series={cs} bars={bars} marks={marks} /></div>;
 }

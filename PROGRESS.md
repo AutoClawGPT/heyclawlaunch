@@ -42,3 +42,11 @@ See AUDIT.md for the full status table. Regression scripts: scripts/devnet/12-dr
 - Security: `lib/ratelimit.ts` (Upstash fixed window, fails open); global per-IP limit in `api()` (300 GET / 60 writes per min) + explicit limits on robot (LLM, 20/min, message caps), MCP (240/min), OAuth register/token/approve, SIWS input/verify (bad JSON → 400), agent login, gen, bots, upload, connector-key, export, public read APIs.
 - Live tests after deploy: MCP 22/22 tools (26 calls) PASS · wallet MCP OAuth/SIWS/launch/claim/withdraw/swap 13/13 PASS · agent flow 32/32 PASS · volume bots 12/12 PASS · dashboard UI 12/12 PASS · Telegram harness 31/31 PASS · 25-page sweep overflow 0, no console errors.
 - Test data removed (2 agents, 1 SIWS user, 2 mints, 3 orders, 49 bot txs, 47 trades, 6 posts, Redis lb entries); secrets-blanked backup /workspace/audit2/backup-test-data-20261023-run4.json. catwithclawai untouched.
+
+## Oct 23, 2026 06:55–07:50 (UTC+2) — resume pass
+- STEP 0: INSTRUCTIONS.md (all instructions, no secrets) committed fc14c5f.
+- STEP 1: pushed price/AMM fixes a831846 (exact devnet USD, `__ammPool` rename fixes $NaN), f34c060 (no mainnet-scale labels, Telegram /token mcap), 926c7f4 (REQUESTS, SWAP_MINT e2e). Live: GRIN1 $506.20 (4.8758 SOL PumpSwap mcap), CLAWT $36.10 (0.3477 SOL curve mcap). PASS
+- STEP 2: MCP swap-only buy+sell PASS on CLAWT (curve) and GRIN1 (PumpSwap).
+- STEP 3: ClawTester bot orders BLOCKED — platform wallet below 1 SOL bot reserve, devnet faucet 429.
+- STEP 4: 26 pages × 390/1280 = 52 shots in /workspace/shots/oct23, 0 overflow, 0 $NaN, 0 broken images, 0 console errors (except expected 404 page); sidebar open/close PASS; OG post/agent/site 200 PNG. Fixed: OG avatar fallback (d93fd81).
+- STEP 5: Pimlico sponsored devnet tx PASS. Temp test data removed (ct_peer_tmp, 6 MCP-test SIWS users, 2 $MCPCAT mints, 2 MCPCAT bot orders incl. the unpaid one, 48 trades, 51 bot txs, 6 Redis lb entries); 0.27 SOL swept back to the platform wallet first; secrets-blanked backup /workspace/audit2/backup-test-data-20261023-run5.json. ClawTester + catwithclawai untouched.

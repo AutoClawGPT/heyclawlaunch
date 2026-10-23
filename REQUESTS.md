@@ -13,10 +13,10 @@ Sources: chat Oct 18 (23 messages, ~55 distinct asks), PROGRESS.md, AUDIT.md, Oc
 - [x] No demo coins/users anywhere — done (test data purged Oct 18 + Oct 23; ClawTester is the one permanent, real test agent)
 - [x] Images on the site never broken — done (IPFS proxy races gateways; broken avatar → generated fallback) · fixed now: agent avatar/banner on ipfs.io 429 were silently dropped at register (`lib/core/agents.ts`, commit c5529e9)
 - [x] Login tab (API key or wallet), settings page to control the agent — done (/login, /agents/dashboard; cookie HttpOnly/Secure/Strict PASS Oct 23)
-- [ ] Mobile side tab listing every tab, show/hide without glitches — open: re-verify in this pass's sweep
+- [x] Mobile side tab listing every tab, show/hide without glitches — done (Oct 23 07:xx sweep: 16 links, open x=0 / closed x=-224, scrim + Esc close; /workspace/shots/oct23/sidebar-*.png)
 - [x] Compress/perf, remove "slides" look — done (home JS 191 → 171 KB gz, ISR, CDN caching; PROGRESS 05:20)
 - [x] Use skills/tools first, fast site, no errors — done (lint 0 errors, tsc clean, build clean before each push)
-- [x] X/Twitter share card (OG image) for the site link — done (all OG 200 PNG, AUDIT Oct 23) · /community/[id] per-post image: open (re-check)
+- [x] X/Twitter share card (OG image) for the site link — done (all OG 200 PNG, AUDIT Oct 23) · /community/[id] per-post image: fixed now (agent avatar fell back to initials when our IPFS proxy was slower than the 2.5 s probe; d93fd81)
 
 ## Launch, Telegram, wallets
 - [x] Real pump.fun devnet launch from site, Telegram, MCP, agents — done (ClawTester launched $CLAWT via MCP Oct 23)
@@ -36,12 +36,12 @@ Sources: chat Oct 18 (23 messages, ~55 distinct asks), PROGRESS.md, AUDIT.md, Oc
 - [x] Users pay from any wallet (Solana Pay reference) or their HCL wallet, bot starts, real trades, stop/resume — done (bots E2E 12/12 Oct 23)
 - [x] Copy the dexlift_bot flow / dexliftdeployer dashboard on our own setup (devnet SOL only) — done (bots dashboard + Telegram /volume /mybots /botpay)
 - [ ] Bots run reliably off the box (worker + Telegram bot outlive restarts) — partly done: box supervisor + .bashrc autostart (PROGRESS 05:20); daily Vercel cron also runs one bot pass. A real always-on host (Railway/Fly/VPS) needs user.
-- [x] Bots work on graduated coins (local follow-up fix pending push: `globalThis.__pool` name clash between PumpSwap cache and Postgres pool) — fixed now: PumpSwap routing (`lib/core/amm.ts`, 265d5e0); live devnet buy+sell on GRIN1 pool PASS
-- [ ] Real orders as ClawTester for every bot kind/tier affordable on devnet, via site, MCP, Telegram — open (devnet faucet dry; see budget note at the bottom)
+- [x] Bots work on graduated coins (`globalThis.__pool` clash fixed → `__ammPool`, a831846; MCP swap-only retest buy+sell PASS on CLAWT and GRIN1 Oct 23) — fixed now: PumpSwap routing (`lib/core/amm.ts`, 265d5e0); live devnet buy+sell on GRIN1 pool PASS
+- [ ] Real orders as ClawTester for every bot kind/tier affordable on devnet, via site, MCP, Telegram — blocked by devnet budget: order refused "Bot capacity is used up (platform wallet at its reserve)"; platform wallet 0.42 SOL < BOT_RESERVE_SOL 1, faucet 429. Needs ~1.5+ devnet SOL sent to CMhM6MXVc1cbAWQk3ReC6pKvPy4NEz3gFqXwgDi9ucmm
 
 ## Prices & charts
-- [x] Real pump.fun data on token pages, not "0.28 SOL" — done Oct 18; Oct 23 correction: "mainnet scale" removed (local, pending push)
-- [ ] USD everywhere — open (local fix, not pushed): devnet = EXACT on-chain curve/PumpSwap-pool price × live SOL/USD, no scaling; Jupiter/DexScreener token prices only on mainnet; also added to Telegram /token and MCP launch_status. Earlier version: `coinUsd()` (Jupiter v3 → DexScreener on mainnet, on-chain curve/pool × SOL/USD on devnet via Helius RPC), lists + marquee + token page + chart (c5529e9, 68b7b00, a98f53e)
+- [x] Real pump.fun data on token pages, not "0.28 SOL" — done Oct 18; Oct 23 correction: "mainnet scale" removed (pushed f34c060)
+- [x] USD everywhere — fixed now (a831846, f34c060; live: GRIN1 $506 = 4.876 SOL PumpSwap mcap × SOL/USD, CLAWT $36 = 0.348 SOL curve mcap, no $NaN, no ×100 label): devnet = EXACT on-chain curve/PumpSwap-pool price × live SOL/USD, no scaling; Jupiter/DexScreener token prices only on mainnet; also added to Telegram /token and MCP launch_status. Earlier version: `coinUsd()` (Jupiter v3 → DexScreener on mainnet, on-chain curve/pool × SOL/USD on devnet via Helius RPC), lists + marquee + token page + chart (c5529e9, 68b7b00, a98f53e)
 - [x] Real OHLC charts from real trades, live updating — done (3 s poll) · fixed now: USD/quote toggle, and PumpSwap trades indexed after graduation (68b7b00)
 - [x] Graduated token pages: mcap was empty, Boost hidden, swap refused — fixed now (pool price/mcap, "Graduated · PumpSwap", Boost kept, swap via PumpSwap)
 
@@ -67,7 +67,7 @@ Sources: chat Oct 18 (23 messages, ~55 distinct asks), PROGRESS.md, AUDIT.md, Oc
 ## Infra
 - [x] GitHub repo with full README/images — done (AutoClawGPT/heyclawlaunch)
 - [x] Vercel with all env vars, Neon (heygro schema only), Upstash — done
-- [ ] Pimlico sponsored tx — off by default behind PIMLICO_API_KEY; result reported in this pass (open)
+- [x] Pimlico sponsored tx — PASS Oct 23: devnet transfer finalized with fee payer = Pimlico paymaster pimXbt2…, platform wallet paid 0 fee (tx 4KYAroujgBW4j3cYanuKbiWxaSie8qc8v6rJcwkRP1Gi21wouuWah45wsgpeYCqfshgM5BBkKZiWfug7Cj8gANXN)
 - [x] Downloadable project + progress log — done (repo + PROGRESS.md/AUDIT.md)
 - [x] No slides/decks — done (none produced)
 - [x] catwithclawai untouched — done

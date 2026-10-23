@@ -3,6 +3,7 @@ import { randomBytes, createHash, timingSafeEqual } from "crypto";
 import { PublicKey, LAMPORTS_PER_SOL } from "@solana/web3.js";
 import { sql } from "@/lib/db";
 import { cfg, solscanTx } from "@/lib/config";
+import { withCustodialSigner } from "@/lib/keystore";
 import { conn, distribute, online, launchWallet, RENT_ZERO } from "@/lib/solana";
 import { UserError } from "./validate";
 
@@ -51,9 +52,12 @@ export async function claimTo(wallet: string, mints: string[], via: string) {
     if ((waiting.get(c.mint) ?? 0) < CLAIM_MIN) { out.push({ mint: c.mint, ticker: c.ticker, note: `below the minimum (${fmt(CLAIM_MIN)} SOL)` }); continue; }
     try {
       const before = await conn().getBalance(new PublicKey(wallet));
-      const r = await distribute(new PublicKey(c.mint), new PublicKey(c.quote_mint));
+      // Rent/fee: when the creator's payout wallet is a HeyClawLaunch custodial wallet with enough SOL, it pays the network fee + one-time vault rent itself (the claimer pays), so the platform keeps its full 20%. Otherwise the platform wallet fronts it as before.
+      const [cw] = await sql`select owner_key from custodial_wallets where pubkey=${wallet}`.catch(() => []);
+      const self = !!cw && before >= RENT_ZERO * 2 + 200_000;
+      const r = self ? await withCustodialSigner(cw.owner_key, kp => distribute(new PublicKey(c.mint), new PublicKey(c.quote_mint), kp)) : await distribute(new PublicKey(c.mint), new PublicKey(c.quote_mint));
       if (r.skipped) { out.push({ mint: c.mint, ticker: c.ticker, note: "below the minimum" }); continue; }
-      const got = (await conn().getBalance(new PublicKey(wallet))) - before - (before === 0 ? RENT_ZERO : 0);
+      const got = (await conn().getBalance(new PublicKey(wallet))) - before - (before === 0 ? RENT_ZERO : 0); // net of the rent/fee when the claimer paid
       await sql`insert into fee_claims(mint,wallet,lamports,sig,via) values(${c.mint},${wallet},${Math.max(0, got)},${r.sig},${via}) on conflict do nothing`;
       await sql`update claim_codes set last_used_at=now() where mint=${c.mint}`;
       out.push({ mint: c.mint, ticker: c.ticker, sol: Math.max(0, got) / 1e9, sig: r.sig });

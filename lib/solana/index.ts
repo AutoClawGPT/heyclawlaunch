@@ -93,8 +93,9 @@ export async function readSharingConfig(mint: PublicKey) {
   return PUMP_SDK.decodeSharingConfig(info);
 }
 
-export async function distribute(mint: PublicKey, quoteMint = NATIVE_MINT) {
-  const launch = launchWallet();
+/** payer (optional): who pays the network fee and any one-time rent (creator-vault / 0-balance shareholder). Default: the launch (platform) wallet. */
+export async function distribute(mint: PublicKey, quoteMint = NATIVE_MINT, payer?: Keypair) {
+  const launch = payer ?? launchWallet();
   const sc = await readSharingConfig(mint);
   if (!sc) throw new Error("no sharing config");
   const min = await online().getMinimumDistributableFee(mint, launch.publicKey, { quoteMint, payer: launch.publicKey });

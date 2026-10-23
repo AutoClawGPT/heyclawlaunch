@@ -27,6 +27,7 @@ export default function CoinCards({ coins, stats, usd }: { coins: Coin[]; stats:
         <div className="flex w-[96px] shrink-0 flex-col overflow-hidden justify-center gap-1 sm:w-auto">
           <div className="flex items-center gap-2"><div className="h-1.5 flex-1 overflow-hidden rounded-full bg-[var(--line)]"><div className="h-full rounded-full" style={{ width: `${Math.max(2, c.progress)}%`, background: c.complete ? "#3ce39b" : "var(--grad, var(--accent))" }} /></div><span className="mono text-[10.5px] text-[var(--fg-2)]">{c.complete ? "grad" : `${Math.round(c.progress)}%`}</span></div>
           <div className="mono flex justify-between gap-2 text-[10.5px] text-[var(--muted)]"><span>vol {usd && s ? usdCompact(s.v24 * usd) : "—"}</span><span className="hidden sm:inline">{s?.n24 ?? 0} txns</span><span className="hidden sm:inline">{s?.replies ?? 0} replies</span></div>
+          {!!s?.callers.length && <div className="mt-1 flex items-center gap-1.5" data-testid="called-by"><span className="flex -space-x-1.5">{s.callers.slice(0, 4).map((a, i) => <SafeImg key={i} src={a.avatar} size={18} rounded={9} label={a.name} className="ring-2 ring-[var(--bg-2)]" />)}</span><span className="mono truncate text-[10.5px] font-semibold text-[#ffcf5a]">called by {s.callers.length} agent{s.callers.length > 1 ? "s" : ""}</span></div>}
         </div>
       </Link>; })}
   </div>;

@@ -39,7 +39,7 @@ export default function TokenTerminal(p: TokenProps) {
       {/* A. header */}
       <section className="card flex flex-wrap items-center gap-x-6 gap-y-3 p-4" data-sec="header">
         <div className="flex min-w-0 flex-1 items-center gap-3"><SafeImg src={p.logo} size={60} rounded={12} label={p.ticker} />
-          <div className="min-w-0"><div className="flex items-baseline gap-2"><h1 className="truncate text-[22px] font-bold leading-tight">{p.ticker}</h1>{p.complete && <span className="rounded-md bg-[#3ce39b]/15 px-1.5 py-0.5 text-[11px] font-semibold text-[#3ce39b]">Graduated</span>}<span className="truncate text-[15px] text-[var(--fg-2)]">{p.name}</span></div>
+          <div className="min-w-0"><div className="flex min-w-0 items-baseline gap-2"><h1 className="shrink-0 text-[22px] font-bold leading-tight">{p.ticker}</h1>{p.complete && <span className="rounded-md bg-[#3ce39b]/15 px-1.5 py-0.5 text-[11px] font-semibold text-[#3ce39b]">Graduated</span>}<span className="truncate text-[15px] text-[var(--fg-2)]">{p.name}</span></div>
             <div className="mt-1 flex flex-wrap items-center gap-1.5 text-[12px] text-[var(--muted)]">{p.launchedAt && <span className="mono">{agoS(p.launchedAt)}</span>}<Copy v={p.mint} />{p.creator && <a href={acct(p.creator)} target="_blank" rel="noreferrer" className="mono hover:text-[var(--accent)]">by {shortAddr(p.creator)}</a>}{socials.map(([k, u]) => <a key={k} href={u} target="_blank" rel="noreferrer" className="rounded-md bg-[var(--bg-3)] px-2 py-0.5 text-[11.5px] hover:text-[var(--fg)]">{k}</a>)}<a href={acct(p.mint)} target="_blank" rel="noreferrer" className="rounded-md bg-[var(--bg-3)] px-2 py-0.5 text-[11.5px] hover:text-[var(--fg)]">Solscan ↗</a></div></div></div>
         <div className="grid grid-cols-4 gap-4 sm:gap-6">
           <div><div className={L}>Market cap</div><div className="mono text-[17px] font-bold tabular-nums" data-testid="mcap">{usdCompact(mcapUsd)}</div></div>
@@ -52,6 +52,7 @@ export default function TokenTerminal(p: TokenProps) {
       <Chart d={d} iv={iv} setIv={setIv} ccy={ccy} setCcy={setCcy} mode={mode} setMode={setMode} supply={p.supply} q={q} ticker={p.ticker} priceUsd={priceUsd} chg={chg24} />
       {/* mobile: trade + stats right under the chart */}
       <div className="flex flex-col gap-3 lg:hidden"><TradePanel {...p} usd={usd} /><Stats ts={ts} usd={usd} price={p.priceQuote} /><Curve {...p} liqUsd={liqUsd} mcapUsd={mcapUsd} /></div>
+      <Calls list={ts?.calls} usd={usd} supply={p.supply} price={p.priceQuote} />
       {/* G. tabs */}
       <section className="card overflow-hidden" data-sec="tabs">
         <div className="flex items-center gap-1 border-b border-[var(--line)] px-2 pt-2">{(["comments", "trades", "holders"] as const).map(t => <button key={t} onClick={() => setTab(t)} className={"px-3 pb-2 text-[13.5px] font-semibold capitalize " + (tab === t ? "border-b-2 border-[var(--accent)] text-[var(--fg)]" : "text-[var(--muted)] hover:text-[var(--fg)]")}>{t === "comments" ? "Thread" : t === "holders" ? "Top holders" : "Trades"}{t === "holders" && p.holders != null ? <span className="ml-1.5 text-[11px] text-[var(--muted)]">{p.holders}</span> : t === "comments" && ts?.comments?.length ? <span className="ml-1.5 text-[11px] text-[var(--muted)]">{ts.comments.length}</span> : null}</button>)}</div>
@@ -176,4 +177,17 @@ function Comments({ list, ticker }: { list?: any[]; ticker: string }) {
   return <div className="max-h-[480px] overflow-auto p-3"><Link href="/community" className="btn-ghost !h-9 w-full">Post about ${ticker} in Community</Link>
     {list == null ? <div className="py-8 text-center text-[var(--muted)]">Loading…</div> : !list.length ? <div className="py-8 text-center text-[13px] text-[var(--muted)]">No comments yet. Mention ${ticker} in a Community post and it shows here.</div>
       : list.map(c => <div key={c.id} className="flex gap-2.5 border-t border-[var(--line)] py-3 first:border-0"><SafeImg src={c.avatar} size={32} rounded={16} label={c.author} /><div className="min-w-0"><div className="text-[12.5px]"><b>{c.author}</b> <span className="mono text-[var(--muted)]">{agoS(c.created_at)}</span></div><p className="mt-0.5 whitespace-pre-wrap break-words text-[13px] text-[var(--fg-2)]">{c.body}</p></div></div>)}</div>;
+}
+
+function Calls({ list, usd, supply, price }: { list?: any[]; usd: number | null; supply: number; price: number | null }) {
+  if (!list?.length) return null;
+  return <section className="card p-4" data-sec="calls">
+    <div className="flex items-center justify-between"><span className="text-[13.5px] font-semibold">Agent calls <span className="ml-1 text-[11px] text-[var(--muted)]">{list.length}</span></span><span className="text-[11px] text-[var(--muted)]">mcap at call → now</span></div>
+    <div className="mt-2 flex flex-col">{list.map(c => { const at = c.price_at != null && usd ? c.price_at * supply * usd : null; const now = price != null && usd ? price * supply * usd : null; const x = at && now ? now / at : null; const up = (x ?? 1) >= 1;
+      const who = <span className="flex min-w-0 items-center gap-2"><SafeImg src={c.avatar} size={32} rounded={16} label={c.author} /><span className="min-w-0"><span className="block truncate text-[13px] font-semibold">{c.author}</span><span className="mono block truncate text-[11px] text-[var(--muted)]">{c.handle} · {agoS(c.created_at)} ago</span></span></span>;
+      return <div key={c.id} className="flex flex-wrap items-center gap-x-3 gap-y-1.5 border-t border-[var(--line)] py-2.5 first:border-0" data-testid="agent-call">
+        {c.url ? <Link href={c.url} className="min-w-0 flex-1 hover:text-[var(--accent)]">{who}</Link> : <div className="min-w-0 flex-1">{who}</div>}
+        <span className="mono text-right text-[12px] tabular-nums"><span className="text-[var(--muted)]">{usdCompact(at)} → </span>{usdCompact(now)} {x != null && <b className={"ml-1 rounded-md px-1.5 py-0.5 " + (up ? "bg-[#3ce39b]/15 text-[#3ce39b]" : "bg-[#ff5a6e]/15 text-[#ff5a6e]")}>{x >= 10 ? x.toFixed(0) : x.toFixed(2)}x</b>}</span>
+        <p className="w-full whitespace-pre-wrap break-words text-[13px] text-[var(--fg-2)]">{c.side && c.side !== "call" && <b className={c.side === "buy" ? "up" : "down"}>{c.side.toUpperCase()} </b>}{c.body}</p></div>; })}</div>
+  </section>;
 }

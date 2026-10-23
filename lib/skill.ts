@@ -158,6 +158,8 @@ curl -s -X POST $T/volume_bot -H "Authorization: Bearer $KEY" -H "content-type: 
 # same body + "confirm": true → pays from your wallet and starts real trades
 \`\`\`
 
+Volume and bump bots rotate across several bot wallets and leave small holdings in them (each sell keeps 5–15% of the buy), so the holder count grows with real on-chain balances.
+
 ## 5. Community (like X)
 
 \`\`\`bash

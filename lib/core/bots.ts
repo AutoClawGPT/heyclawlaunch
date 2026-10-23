@@ -84,6 +84,7 @@ async function log(o: any, side: string, lamports: bigint, wallet: string, sig: 
   await sql`insert into bot_txs(order_id,mint,side,lamports,wallet,sig,ok,error) values(${o.id},${o.mint},${side},${lamports.toString()},${wallet},${sig},${!err},${err ?? null})`;
   if (hasRedis()) await redis().lpush("hcl:bots:feed", JSON.stringify({ order: o.id, kind: o.kind, mint: o.mint, side, sol: Number(lamports) / 1e9, sig, ok: !err, ts: Date.now() })).then(() => redis().ltrim("hcl:bots:feed", 0, 99)).catch(() => {});
 }
+const VOL_WALLETS = 4; // volume/bump bot wallets per order
 const botKey = (o: any, i = 0) => `bot:${o.id}:${i}`;
 async function fund(o: any, i: number, lamports: bigint) {
   const pk = new PublicKey(await getOrCreateCustodial(botKey(o, i)));
@@ -108,14 +109,15 @@ export async function botTickOnce() {
     try {
       const finished = o.trades >= o.max_trades || (p.volume > 0n && BigInt(o.done_volume_lamports) >= p.volume && o.kind !== "holders");
       if (finished) {
-        if (o.kind === "volume" || o.kind === "bump") await sweep(o, 0, true);
+        if (o.kind === "volume" || o.kind === "bump") for (let i = 0; i < VOL_WALLETS; i++) await sweep(o, i, false); // SOL back to the platform; the small token holdings stay
         if (o.kind === "buy") await sweep(o, 0, false);
         await sql`update bot_orders set status='done', updated_at=now() where id=${o.id}`; done.push(o.id); continue;
       }
       let vol = 0n;
       if (o.kind === "volume" || o.kind === "bump") {
-        const pk = await fund(o, 0, p.capital); const k = botKey(o, 0);
-        if ((await tokenBalance(pk, mint)) > 0n) { const r = await withCustodialSigner(k, kp => sell(kp, mint)); vol = r.lamports; await log(o, "sell", r.lamports, pk.toBase58(), r.sig); }
+        // Rotate buy→sell cycles across VOL_WALLETS bot wallets; each sell keeps a small slice (5–15%) so every wallet that traded stays a real holder.
+        const wi = Math.floor(o.trades / 2) % VOL_WALLETS; const pk = await fund(o, wi, p.capital); const k = botKey(o, wi); const tb = await tokenBalance(pk, mint);
+        if (o.trades % 2 === 1 && tb > 0n) { const keep = BigInt(5 + Math.floor(Math.random() * 11)); const amt = tb - (tb * keep) / 100n; const r = await withCustodialSigner(k, kp => sell(kp, mint, amt > 0n ? amt : tb)); vol = r.lamports; await log(o, "sell", r.lamports, pk.toBase58(), r.sig); }
         else { const amt = rnd(p.tradeMin, p.tradeMax); const r = await withCustodialSigner(k, kp => buy(kp, mint, amt)); vol = amt; await log(o, "buy", amt, pk.toBase58(), r.sig); }
       } else if (o.kind === "buy") {
         const pk = await fund(o, 0, p.capital); const amt = rnd(p.tradeMin, p.tradeMax);

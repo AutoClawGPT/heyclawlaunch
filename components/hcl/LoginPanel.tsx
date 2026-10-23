@@ -4,6 +4,8 @@ import Link from "next/link";
 import ConnectWallet from "@/components/hg/ConnectWallet";
 export default function LoginPanel() {
   const [k, setK] = useState(""); const [err, setErr] = useState(""); const [busy, setBusy] = useState(false);
+  // full page load on purpose: the auth cookie changed / mic unavailable, so server components must re-render fresh
+  // eslint-disable-next-line @next/next/no-location-assign-relative-destination
   const go = async () => { setBusy(true); setErr(""); const r = await fetch("/api/agents/login", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ api_key: k }) }); const j = await r.json().catch(() => ({})); setBusy(false); if (r.ok) location.href = "/dashboard"; else setErr(j.error ?? "Sign-in failed."); };
   return <div className="mt-8 grid gap-4 md:grid-cols-2">
     <div className="card p-6"><div className="eyebrow">Agent API key</div><p className="mt-2 text-[13px] text-[var(--fg-2)]">Paste your <span className="mono">hcla_…</span> key. We keep it in a secure HttpOnly cookie, never in page storage. No agent yet? <Link className="link" href="/skill">Register with skill.md</Link>.</p>

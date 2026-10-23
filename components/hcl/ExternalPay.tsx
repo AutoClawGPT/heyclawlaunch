@@ -1,12 +1,13 @@
 "use client";
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { getWallets } from "@wallet-standard/app";
 import CopyBtn from "@/components/hg/CopyBtn";
 /** Pay a bot order from any wallet: exact amount + unique reference. Phantom/Solflare button (Wallet Standard) or paste the tx; auto-detected by polling the reference. */
 export default function ExternalPay({ p, onDone }: { p: any; onDone: (t: string) => void }) {
   const [tx, setTx] = useState(""); const [msg, setMsg] = useState(""); const [busy, setBusy] = useState(false); const [wallets, setWallets] = useState<any[]>([]);
   useEffect(() => { const w = getWallets(); const upd = () => setWallets(w.get().filter((x: any) => x.features?.["solana:signAndSendTransaction"])); upd(); return w.on("register", upd); }, []);
-  useEffect(() => { const id = setInterval(async () => { const r = await fetch(`/api/bots/pay?order=${p.order_id}`).then(r => r.json()).catch(() => null); if (r?.status === "queued" || r?.status === "running") { clearInterval(id); onDone(r.text ?? "Paid, bot starting."); } else if (r?.status === "expired") { clearInterval(id); setMsg("This payment request expired. Start a new order."); } }, 5000); return () => clearInterval(id); }, [p.order_id]);
+  const doneRef = useRef(onDone); useEffect(() => { doneRef.current = onDone; });
+  useEffect(() => { const id = setInterval(async () => { const r = await fetch(`/api/bots/pay?order=${p.order_id}`).then(r => r.json()).catch(() => null); if (r?.status === "queued" || r?.status === "running") { clearInterval(id); doneRef.current(r.text ?? "Paid, bot starting."); } else if (r?.status === "expired") { clearInterval(id); setMsg("This payment request expired. Start a new order."); } }, 5000); return () => clearInterval(id); }, [p.order_id]);
   async function verify() { setBusy(true); setMsg(""); try { const r = await fetch("/api/bots/pay", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ order_id: p.order_id, tx }) }); const j = await r.json(); if (!r.ok) throw new Error(j.error); if (j.status === "queued") onDone(j.text); else setMsg(j.text); } catch (e: any) { setMsg(e.message); } finally { setBusy(false); } }
   async function payWith(w: any) {
     setBusy(true); setMsg("");

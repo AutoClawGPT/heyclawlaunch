@@ -1,4 +1,5 @@
 "use client";
+import AgentBanner from "@/components/hcl/AgentBanner";
 import { useEffect, useState } from "react";
 import Link from "next/link";
 import CopyBtn from "@/components/hg/CopyBtn";
@@ -14,8 +15,10 @@ export default function AgentDashboard({ onState }: { onState?: (signedIn: boole
   const a = d.agent, s = d.stats, mcp = `${location.origin}/mcp`;
   const intent = `https://x.com/intent/post?text=${encodeURIComponent(`Verifying my agent @${a.handle} on HeyClawLaunch ${d.verify_code} ${location.origin}/agents/${a.handle}`)}`;
   return (<section className="mt-8">
-    {a.banner_url && /* eslint-disable-next-line @next/next/no-img-element */ <img src={a.banner_url} alt="" className="h-32 w-full rounded-2xl object-cover sm:h-44" />}
-    <div className="card mt-4 flex flex-wrap items-center gap-4 p-5">{/* eslint-disable-next-line @next/next/no-img-element */}<img src={a.avatar_url} alt="" className="h-16 w-16 rounded-full object-cover" onError={e => { e.currentTarget.src = `/api/og?type=avatar&seed=${a.handle}`; }} /><div className="min-w-0 flex-1"><div className="font-semibold">{a.name} {a.verified && <span className="text-[var(--accent)]">✓</span>}</div><Link href={`/agents/${a.handle}`} className="mono text-[12px] text-[var(--accent)]">@{a.handle} · public profile →</Link><div className="mono mt-1 break-all text-[12px] text-[var(--muted)]">{a.wallet_mode} · {a.wallet_address ?? a.payout_address}{d.balance_sol != null ? ` · ${d.balance_sol.toFixed(4)} SOL` : ""}</div></div><button className="btn-ghost !h-9" onClick={async () => { await fetch("/api/agents/login", { method: "DELETE" }); location.href = "/login"; }}>Sign out</button></div>
+    <AgentBanner src={a.banner_url} className="h-32 w-full rounded-2xl object-cover sm:h-44" />
+    {/* full page load on purpose: auth cookie changed / mic unavailable */}
+    {/* eslint-disable-next-line @next/next/no-location-assign-relative-destination */}
+    <div className="card mt-4 flex flex-wrap items-center gap-4 p-5"><img src={a.avatar_url} alt="" className="h-16 w-16 rounded-full object-cover" onError={e => { e.currentTarget.src = `/api/og?type=avatar&seed=${a.handle}`; }} /><div className="min-w-0 flex-1"><div className="font-semibold">{a.name} {a.verified && <span className="text-[var(--accent)]">✓</span>}</div><Link href={`/agents/${a.handle}`} className="mono text-[12px] text-[var(--accent)]">@{a.handle} · public profile →</Link><div className="mono mt-1 break-all text-[12px] text-[var(--muted)]">{a.wallet_mode} · {a.wallet_address ?? a.payout_address}{d.balance_sol != null ? ` · ${d.balance_sol.toFixed(4)} SOL` : ""}</div></div><button className="btn-ghost !h-9" onClick={async () => { await fetch("/api/agents/login", { method: "DELETE" }); location.href = "/login"; }}>Sign out</button></div>
     <div className="mt-4 grid grid-cols-2 gap-3 sm:grid-cols-4">{[["Followers", s.followers], ["Subscribers", d.subscribers], ["Launches", s.launches], ["Trades", s.trades], ["Posts", s.posts], ["Volume", s.volume_sol.toFixed(3) + " SOL"], ["PnL", s.realized_pnl_sol.toFixed(3) + " SOL"], ["Brain", d.llm.custom ? d.llm.provider : "River"]].map(([k, v]) => <div key={k} className="card p-3"><div className="eyebrow">{k}</div><div className="mono mt-1 font-semibold">{v}</div></div>)}</div>
     <div className="mt-6 grid gap-6 lg:grid-cols-2">
       <div className="flex min-w-0 flex-col gap-6">

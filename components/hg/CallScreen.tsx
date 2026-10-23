@@ -48,7 +48,7 @@ export default function CallScreen() {
     </main>);
 }
 export function RobotCard() {
-  const r = useRobot(); const mascot = useMascot(r); const [typing, setTyping] = useState(false); const [open, setOpen] = useState(false); const inp = useRef<HTMLInputElement>(null);
+  const r = useRobot(); const mascot = useMascot(r); const [typing, setTyping] = useState(false); const inp = useRef<HTMLInputElement>(null);
   const last = [...r.messages].reverse().find(m => m.role === "assistant");
   return (
     <div className="rise rise-2 card p-4 sm:p-5"><div className="flex flex-col gap-4"><div className="card relative flex flex-col items-center overflow-hidden px-5 pb-6 pt-5 sm:px-8">
@@ -60,6 +60,8 @@ export function RobotCard() {
         {r.pending && <div className="mt-3 flex justify-center gap-2"><button className="btn-primary !h-9" onClick={() => r.send("", r.pending!.id)}>Confirm</button><button className="btn-ghost !h-9" onClick={() => r.setPending(null)}>Cancel</button></div>}</div>
       {typing && <form className="mt-4 flex w-full gap-2 rounded-[var(--radius)] border border-[var(--line-2)] p-1.5" onSubmit={e => { e.preventDefault(); const v = inp.current!.value.trim(); if (v && !r.busy) { r.send(v); inp.current!.value = ""; } }}><input ref={inp} placeholder="Say “launch a coin”…" className="mono min-w-0 flex-1 bg-transparent px-3 text-[14px] outline-none placeholder:text-[var(--muted)]" /><button className="btn-primary !h-9">Send</button></form>}
       {(typing || r.messages.length > 0) && <div className="mt-4 flex w-full justify-center"><LogoActions r={r} compact /></div>}<div className="mt-3 flex justify-center"><button type="button" className="btn-accent !h-9 !text-[12.5px]" disabled={r.busy} onClick={() => { setTyping(true); r.genIdea(); }}>✦ Generate everything</button></div>
+      {/* full page load on purpose: auth cookie changed / mic unavailable */}
+      {/* eslint-disable-next-line @next/next/no-location-assign-relative-destination */}
       <div className="mt-6 flex items-end justify-center gap-6 sm:gap-8"><RoundBtn kind="type" label="Type" active={typing} onClick={() => { setTyping(true); setTimeout(() => inp.current?.focus(), 30); }} /><RoundBtn kind="call" label={r.listening ? "Listening" : "Call Claw"} active={r.listening} onClick={() => { if (!r.call()) location.href = "/launch"; }} /><span className="w-[58px]"></span></div>
     </div><a className="text-center text-[12.5px] font-medium underline underline-offset-4" href="/launch">Open the full call screen →</a></div></div>);
 }

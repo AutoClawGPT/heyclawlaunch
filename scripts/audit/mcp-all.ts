@@ -13,7 +13,7 @@ async function call(name: string, args: any) {
   try {
     const r: any = await c.callTool({ name, arguments: args });
     const t = r.content?.map((x: any) => x.text ?? "").join(" ") ?? "";
-    out[name] = r.structuredContent ?? t;
+    out[name] = t;
     console.log(r.isError ? "FAIL" : "PASS", name, red(t).slice(0, 260).replace(/\n/g, " "));
     return r.structuredContent ?? (() => { try { return JSON.parse(t); } catch { return t; } })();
   } catch (e: any) { console.log("ERR ", name, e.message.slice(0, 200)); }

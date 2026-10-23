@@ -18,7 +18,18 @@ const HANDLE = /^[a-z0-9_]{3,24}$/;
 
 export type Agent = { id: string; handle: string; name: string; bio: string | null; avatar_url: string | null; banner_url: string | null; owner_user_id: string | null; wallet_mode: "custodial" | "imported" | "payout"; wallet_address: string | null; payout_address: string | null; verify_code: string; x_post_url: string | null; x_handle: string | null; verify_status: string; autotrade: boolean; created_at: string };
 
-async function imageOk(u: string) { try { const r = await fetch(u.replace(/^ipfs:\/\//, "https://ipfs.io/ipfs/"), { method: "GET", signal: AbortSignal.timeout(6000) }); return r.ok && (r.headers.get("content-type") ?? "").startsWith("image/"); } catch { return false; } }
+async function probe(u: string, ms = 8000) { try { const r = await fetch(u, { method: "GET", signal: AbortSignal.timeout(ms) }); return r.ok && (r.headers.get("content-type") ?? "").startsWith("image/"); } catch { return false; } }
+/** Returns a URL that serves the image, or null. Public IPFS gateways often rate-limit (429), so IPFS CIDs fall back to other gateways and then to our own /api/ipfs proxy. */
+async function resolveImage(u: string): Promise<string | null> {
+  const src = u.replace(/^ipfs:\/\//, "https://ipfs.io/ipfs/");
+  const cid = src.match(/\/ipfs\/([A-Za-z0-9]{46,})/)?.[1];
+  if (!cid) return (await probe(src)) ? src : null;
+  const tries = [src, `https://dweb.link/ipfs/${cid}`, `https://gateway.pinata.cloud/ipfs/${cid}`];
+  const ok = await Promise.all(tries.map(t => probe(t)));
+  if (ok[0]) return src;
+  if (ok.some(Boolean)) return `${cfg.appUrl}/api/ipfs/${cid}`;
+  return (await probe(`${cfg.appUrl}/api/ipfs/${cid}`, 15000)) ? `${cfg.appUrl}/api/ipfs/${cid}` : null;
+}
 function validAddress(a: string) { try { return PublicKey.isOnCurve(new PublicKey(a).toBytes()) || true; } catch { return false; } }
 
 /** Registers an agent. Credentials (API key, and the generated wallet's secret key) are returned exactly once. */
@@ -31,7 +42,8 @@ export async function registerAgent(b: any, owner?: Ctx) {
   let avatar = b?.avatar_url ? String(b.avatar_url) : null;
   if (avatar && !/^https:\/\/|^ipfs:\/\//.test(avatar)) throw new UserError("avatar_url must be https:// or ipfs://.");
   let banner = b?.banner_url ? String(b.banner_url) : null;
-  if (banner && (!/^https:\/\//.test(banner) || !(await imageOk(banner)))) banner = null;
+  const warnings: string[] = [];
+  if (banner) { const bu = /^https:\/\/|^ipfs:\/\//.test(banner) ? await resolveImage(banner) : null; if (!bu) warnings.push("banner_url could not be loaded as an image, so no banner was set. Set it later with PATCH /api/agents/me {\"banner_url\":\"https://…\"}."); banner = bu; }
   if (b?.wallet === "generate") b.wallet = { mode: "custodial" };
   else if (typeof b?.wallet === "string") b.wallet = { mode: "payout", address: b.wallet };
   const mode = (b?.wallet?.mode === "generate" ? "custodial" : b?.wallet?.mode ?? "custodial") as string;
@@ -47,7 +59,7 @@ export async function registerAgent(b: any, owner?: Ctx) {
     walletAddress = await importKeypair(key, kp).catch((e: any) => { throw new UserError(e.message); }); kp.secretKey.fill(0);
   } else { payout = String(b?.wallet?.address ?? "").trim(); if (!validAddress(payout)) throw new UserError("wallet.address must be a Solana address (base58)."); }
   if (mode !== "payout" && b?.wallet?.address) { payout = String(b.wallet.address).trim(); if (!validAddress(payout)) throw new UserError("wallet.address must be a Solana address."); }
-  if (avatar && !(await imageOk(avatar))) avatar = null;
+  if (avatar) { const au = await resolveImage(avatar); if (!au) warnings.push("avatar_url could not be loaded as an image, so a generated avatar was used. Set it later with PATCH /api/agents/me {\"avatar_url\":\"https://…\"}."); avatar = au; }
   if (!avatar) avatar = `${cfg.appUrl}/api/og?type=avatar&seed=${handle}`;
   await sql`insert into agents(id,handle,name,bio,avatar_url,banner_url,owner_user_id,wallet_mode,wallet_address,payout_address,api_key_hash,verify_code) values(${id},${handle},${name},${bio},${avatar},${banner},${owner?.userId ?? null},${mode},${walletAddress},${payout},${hash(apiKey)},${verifyCode})`;
   await sql`insert into audit_log(actor,action,detail) values(${key},'agent_register',${sql.json({ handle, mode })})`;
@@ -56,6 +68,7 @@ export async function registerAgent(b: any, owner?: Ctx) {
     api_key: apiKey, wallet_mode: mode, wallet_address: walletAddress, payout_address: payout, ...(secret ? { wallet_secret_key: secret } : {}),
     bearer_token: `Bearer ${apiKey}`, mcp_url: `${cfg.appUrl}/mcp`,
     verify: { code: verifyCode, tweet_intent: `https://x.com/intent/post?text=${encodeURIComponent(`Verifying my agent @${handle} on HeyClawLaunch ${verifyCode} ${cfg.appUrl}/agents/${handle}`)}`, how: `Post on X a message containing ${verifyCode}, then POST ${cfg.appUrl}/api/agents/verify {"post_url":"https://x.com/<you>/status/<id>"} with your bearer key. Optional.` },
+    ...(warnings.length ? { warnings } : {}),
     mcp: { url: `${cfg.appUrl}/mcp`, header: "Authorization: Bearer <api_key>" },
     show_user: "Show ALL of these values to your user in chat, in full, untruncated: api_key, bearer_token, mcp_url, wallet_address" + (secret ? ", wallet_secret_key" : "") + ". Do NOT only save them on your own machine.",
     save_these: "SAVE THESE NOW. api_key" + (secret ? " and wallet_secret_key are" : " is") + " shown only once and cannot be recovered. Store them in your secret store, never in public logs or posts.",
@@ -106,8 +119,8 @@ export async function updateAgent(ctx: Ctx, b: any) {
   if (!ctx.agentId) throw new UserError("Use your agent API key.", 401);
   if (b.bio != null) await sql`update agents set bio=${String(b.bio).slice(0, 280)} where id=${ctx.agentId}`;
   if (b.name) await sql`update agents set name=${String(b.name).slice(0, 48)} where id=${ctx.agentId}`;
-  if (b.avatar_url) { if (!/^https:\/\//.test(b.avatar_url)) throw new UserError("avatar_url must be https://."); if (!(await imageOk(b.avatar_url))) throw new UserError("avatar_url must point to a reachable image."); await sql`update agents set avatar_url=${b.avatar_url} where id=${ctx.agentId}`; }
-  if (b.banner_url) { if (!/^https:\/\//.test(b.banner_url) || !(await imageOk(b.banner_url))) throw new UserError("banner_url must be a reachable https:// image."); await sql`update agents set banner_url=${b.banner_url} where id=${ctx.agentId}`; }
+  if (b.avatar_url) { if (!/^https:\/\/|^ipfs:\/\//.test(b.avatar_url)) throw new UserError("avatar_url must be https:// or ipfs://."); const u = await resolveImage(String(b.avatar_url)); if (!u) throw new UserError("avatar_url must point to a reachable image."); await sql`update agents set avatar_url=${u} where id=${ctx.agentId}`; }
+  if (b.banner_url) { const u = /^https:\/\/|^ipfs:\/\//.test(b.banner_url) ? await resolveImage(String(b.banner_url)) : null; if (!u) throw new UserError("banner_url must be a reachable https:// or ipfs:// image."); await sql`update agents set banner_url=${u} where id=${ctx.agentId}`; }
   if (b.payout_address) { if (!validAddress(b.payout_address)) throw new UserError("payout_address must be a Solana address."); await sql`update agents set payout_address=${b.payout_address} where id=${ctx.agentId}`; }
   if (b.autotrade != null) await sql`update agents set autotrade=${!!b.autotrade} where id=${ctx.agentId}`;
   return agentPublic((await sql`select * from agents where id=${ctx.agentId}`)[0] as Agent);

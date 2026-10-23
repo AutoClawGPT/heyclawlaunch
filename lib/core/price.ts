@@ -12,3 +12,31 @@ export async function solUsd(): Promise<number | null> {
 /** pump.fun mainnet starts every curve at 30 SOL virtual; devnet's global uses a smaller start. Scale for a mainnet-equivalent USD view. */
 export const MAINNET_VQ0 = 30_000_000_000;
 export const fmtUsd = (v: number | null) => v == null ? "—" : v >= 1e6 ? `$${(v / 1e6).toFixed(2)}M` : v >= 1e3 ? `$${(v / 1e3).toFixed(1)}K` : `$${v.toFixed(2)}`;
+
+const isMainnet = () => (process.env.SOLANA_CLUSTER ?? "devnet") === "mainnet-beta" || process.env.SOLANA_CLUSTER === "mainnet";
+const tp = ((globalThis as any).__tp ??= new Map<string, { t: number; v: number | null }>());
+/** Market USD price of a token from Jupiter v3, then DexScreener (mainnet only; devnet coins have no market data). Cached 15 s. */
+export async function marketUsd(mint: string): Promise<{ usd: number; source: string } | null> {
+  if (!isMainnet()) return null;
+  const c = tp.get(mint); if (c && Date.now() - c.t < 15_000) return c.v != null ? { usd: c.v, source: "cache" } : null;
+  const tries: [string, string, (j: any) => number][] = [
+    ["jupiter", `https://lite-api.jup.ag/price/v3?ids=${mint}`, j => j?.[mint]?.usdPrice],
+    ["dexscreener", `https://api.dexscreener.com/tokens/v1/solana/${mint}`, j => Array.isArray(j) ? Number(j.sort((a: any, b: any) => (b?.liquidity?.usd ?? 0) - (a?.liquidity?.usd ?? 0))[0]?.priceUsd) : NaN],
+  ];
+  for (const [src, u, f] of tries) { try { const v = Number(f(await fetch(u, { signal: AbortSignal.timeout(4000) }).then(r => r.json()))); if (v > 0) { tp.set(mint, { t: Date.now(), v }); return { usd: v, source: src }; } } catch {} }
+  tp.set(mint, { t: Date.now(), v: null }); return null;
+}
+/** USD per 1 unit of quote for display. On devnet, curve/pool prices are scaled to a mainnet-equivalent curve (×30 SOL / devnet initial virtual SOL). */
+export async function usdPerQuote(opts: { vq0?: number | null; quote?: string } = {}): Promise<{ usd: number | null; scale: number }> {
+  const scale = !isMainnet() && opts.vq0 ? MAINNET_VQ0 / opts.vq0 : 1;
+  if (opts.quote === "USDC") return { usd: 1, scale };
+  return { usd: await solUsd(), scale };
+}
+/** USD price + market cap of a coin: market data on mainnet when available, otherwise on-chain price × SOL/USD. */
+export async function coinUsd(mint: string, priceQuote: number | null, opts: { vq0?: number | null; quote?: string; supply?: number } = {}) {
+  const supply = opts.supply ?? 1e9; const m = await marketUsd(mint);
+  if (m) return { priceUsd: m.usd, mcapUsd: m.usd * supply, source: m.source, scaled: false };
+  const { usd, scale } = await usdPerQuote(opts);
+  const priceUsd = priceQuote != null && usd ? priceQuote * scale * usd : null;
+  return { priceUsd, mcapUsd: priceUsd != null ? priceUsd * supply : null, source: "on-chain", scaled: scale !== 1 };
+}

@@ -1,3 +1,4 @@
+import { liveImages } from "./imgcheck";
 import { randomBytes, createHash } from "crypto";
 import { Keypair, PublicKey } from "@solana/web3.js";
 import bs58 from "bs58";
@@ -134,7 +135,7 @@ export async function listAgents(sort: "new" | "volume" | "followers" = "new", l
     (select count(*)::int from launches where owner_key='agent:'||a.id) launches
     from agents a order by a.created_at desc limit 500`;
   rows.sort((x: any, y: any) => sort === "volume" ? Number(y.vol) - Number(x.vol) : sort === "followers" ? y.followers - x.followers : 0);
-  return rows.slice(0, limit).map((r: any) => ({ ...agentPublic(r), followers: r.followers, volume_sol: Number(r.vol) / 1e9, realized_pnl_sol: Number(r.pnl) / 1e9, launches: r.launches }));
+  return Promise.all(rows.slice(0, limit).map((r: any) => liveImages({ ...agentPublic(r), followers: r.followers, volume_sol: Number(r.vol) / 1e9, realized_pnl_sol: Number(r.pnl) / 1e9, launches: r.launches })));
 }
 export async function agentByHandle(h: string) { const [a] = await sql`select * from agents where handle=${h.toLowerCase().replace(/^@/, "")}`; return (a as Agent) ?? null; }
 export async function agentWalletOf(a: Agent) { return a.wallet_address ?? (await findCustodial(agentKey(a.id))); }

@@ -2,6 +2,14 @@ import { ImageResponse } from "next/og";
 import { sql } from "@/lib/db";
 import { gatewayUrl } from "@/lib/ipfs";
 import { cfg } from "@/lib/config";
+import { who } from "@/lib/core/social";
+import { imgOk } from "@/lib/core/imgcheck";
+/** Use an external image only if it actually loads; otherwise the generated initials avatar. */
+async function okImg(url: string | null | undefined, seed: string) {
+  const fb = `${cfg.appUrl}/api/og?type=avatar&seed=${encodeURIComponent(seed)}`;
+  if (!url?.startsWith("https://") || url.includes("/api/og")) return fb;
+  return (await imgOk(url)) ? url : fb;
+}
 export const runtime = "nodejs";
 const W = 1200, H = 630;
 const BG = "#07080d", ACC = "#3df5d0", FG = "#f4f6fb", MUT = "#8a93a8";
@@ -10,10 +18,10 @@ function Frame({ eyebrow, title, sub, img, stats }: { eyebrow: string; title: st
     <div style={{ width: W, height: H, display: "flex", flexDirection: "column", justifyContent: "space-between", background: `radial-gradient(circle at 85% 10%, #123a3a 0%, ${BG} 55%)`, color: FG, padding: 64, fontFamily: "sans-serif" }}>
       <div style={{ display: "flex", alignItems: "center", gap: 14, fontSize: 30, fontWeight: 700 }}><div style={{ width: 44, height: 44, borderRadius: 12, background: ACC, display: "flex" }} />HeyClawLaunch<span style={{ marginLeft: 16, fontSize: 20, color: MUT, fontWeight: 400 }}>{cfg.cluster}</span></div>
       <div style={{ display: "flex", alignItems: "center", gap: 44 }}>
-        {img ? <img src={img} width={220} height={220} style={{ borderRadius: 32, objectFit: "cover", border: `4px solid ${ACC}` }} /> : null}
+        {img ? <img src={img} alt="" width={220} height={220} style={{ borderRadius: 32, objectFit: "cover", border: `4px solid ${ACC}` }} /> : null}
         <div style={{ display: "flex", flexDirection: "column", maxWidth: img ? 800 : 1060 }}>
           <div style={{ fontSize: 24, color: ACC, letterSpacing: 4, textTransform: "uppercase" }}>{eyebrow}</div>
-          <div style={{ fontSize: title.length > 22 ? 64 : 84, fontWeight: 800, lineHeight: 1.05, marginTop: 10 }}>{title}</div>
+          <div style={{ fontSize: title.length > 60 ? 46 : title.length > 22 ? 64 : 84, fontWeight: 800, lineHeight: 1.05, marginTop: 10 }}>{title}</div>
           {sub ? <div style={{ fontSize: 28, color: MUT, marginTop: 16 }}>{sub.slice(0, 110)}</div> : null}
         </div>
       </div>
@@ -37,7 +45,14 @@ export async function GET(req: Request) {
     }
     if (type === "agent") {
       const [a] = await sql`select a.*, (select count(*)::int from follows where followee_key='agent:'||a.id) followers, (select count(*)::int from launches where owner_key='agent:'||a.id) launches, (select count(*)::int from posts where author_key='agent:'||a.id) posts from agents a where handle=${(q.get("handle") ?? "").toLowerCase()}`;
-      if (a) return new ImageResponse(<Frame eyebrow={`@${a.handle} · AI agent${a.verify_status === "verified" ? " · verified" : ""}`} title={a.name} sub={a.bio ?? "Trading and launching on HeyClawLaunch."} img={a.avatar_url?.startsWith("https://") && !a.avatar_url.includes("/api/og") ? a.avatar_url : `${cfg.appUrl}/api/og?type=avatar&seed=${a.handle}`} stats={[["Followers", String(a.followers)], ["Launches", String(a.launches)], ["Posts", String(a.posts)]]} />, opt);
+      if (a) return new ImageResponse(<Frame eyebrow={`@${a.handle} · AI agent${a.verify_status === "verified" ? " · verified" : ""}`} title={a.name} sub={a.bio ?? "Trading and launching on HeyClawLaunch."} img={await okImg(a.avatar_url, a.handle)} stats={[["Followers", String(a.followers)], ["Launches", String(a.launches)], ["Posts", String(a.posts)]]} />, opt);
+    }
+    if (type === "post") {
+      const id = Number(q.get("id")); const [p] = Number.isSafeInteger(id) && id > 0 ? await sql`select p.*, (select count(*)::int from likes where post_id=p.id) likes, (select count(*)::int from posts r where r.reply_to=p.id) replies from posts p where id=${id}` : [];
+      if (p) {
+        const au = (await who([p.author_key])).get(p.author_key)!; const body = String(p.body || (p.kind === "call" ? `${p.call?.side ?? "trade"} $${p.call?.ticker ?? ""}` : "Repost")).replace(/\s+/g, " ");
+        return new ImageResponse(<Frame eyebrow={`${au.handle}${au.kind === "agent" ? " · AI agent" : ""} · community`} title={body.length > 90 ? body.slice(0, 88) + "…" : body} sub={au.name} img={await okImg(au.avatar, au.handle.replace(/^@/, ""))} stats={[["Likes", String(p.likes)], ["Replies", String(p.replies)], ["Post", `#${p.id}`]]} />, opt);
+      }
     }
     if (type === "leaderboard") {
       const top = await sql`select l.ticker, coalesce(sum(c.lamports),0)::bigint v from curve_trades c join launches l on l.mint=c.mint where c.ts > now() - interval '1 day' group by l.ticker order by v desc limit 3`;

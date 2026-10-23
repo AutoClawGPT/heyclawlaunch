@@ -26,7 +26,7 @@ const ss = await sdk.fetchSellState(mint, user1.publicKey, TOKEN_2022_PROGRAM_ID
 const sellIxs = await PUMP_SDK.sellV3Instructions({ bondingCurve: ss.bondingCurve, mint, user: user1.publicKey, amount: bal.divn(2), quoteAmount: new BN(1), slippage: 99, tokenProgram: TOKEN_2022_PROGRAM_ID, quoteTokenProgram: ss.quoteTokenProgram });
 const sellSig = await sendV0(sellIxs, [user1]);
 report("07-trade", true, `buy ${solscanTx(bsig)} tokens=${bal.toString()} sell ${solscanTx(sellSig)}`);
-const lBefore = await c.getBalance(launch.publicKey), rBefore = await c.getBalance(recipient.publicKey);
+const rBefore = await c.getBalance(recipient.publicKey);
 const d = await distribute(mint);
 if (d.skipped) { report("08-distribute", false, `skipped: min ${JSON.stringify(d.min)}`); process.exit(1); }
 const rAfter = await c.getBalance(recipient.publicKey);

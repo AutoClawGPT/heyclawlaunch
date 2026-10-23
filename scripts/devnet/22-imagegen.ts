@@ -2,7 +2,7 @@
 import { writeFileSync, mkdirSync } from "fs";
 import { Keypair } from "@solana/web3.js";
 import nacl from "tweetnacl";
-import { generateLogo, logoPrompt, generateTokenIdea } from "@/lib/image-gen";
+import { generateLogo, logoPrompt } from "@/lib/image-gen";
 import { botQuick, botGenLogo, tgCtx } from "@/lib/bots/telegram";
 import { executePending } from "@/lib/brain/agent";
 import { runTool } from "@/lib/tools/run";

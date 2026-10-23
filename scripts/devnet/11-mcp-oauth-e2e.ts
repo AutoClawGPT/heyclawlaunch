@@ -120,7 +120,7 @@ report("09-withdraw", skip.e && pv.t.startsWith("PREVIEW") && got === 10_000_000
 // --- 7. swap on devnet (pump curve; Jupiter is mainnet-only) ---
 const sp = await call("swap", { from: "SOL", to: mint, amount: "0.02" });
 const sc = await call("swap", { from: "SOL", to: mint, amount: "0.02", confirm: true });
-const ss = await call("swap", { from: mint, to: "SOL", amount: "all" });
+await call("swap", { from: mint, to: "SOL", amount: "all" });
 const sc2 = await call("swap", { from: mint, to: "SOL", amount: "all", confirm: true });
 report("10-swap", sp.t.startsWith("PREVIEW") && sc.t.startsWith("Swapped") && sc2.t.startsWith("Swapped"), `buy: ${sc.t.split("\n")[0]} ${sc.t.match(/https:\S+/)?.[0]} | sell all: ${sc2.t.split("\n")[0]} ${sc2.t.match(/https:\S+/)?.[0]}`);
 await wc.close();

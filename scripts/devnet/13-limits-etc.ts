@@ -1,7 +1,6 @@
 import { sql } from "@/lib/db";
 import { runTool } from "@/lib/tools/run";
-import { readSharingConfig, launchWallet, conn } from "@/lib/solana";
-import { PublicKey } from "@solana/web3.js";
+import { launchWallet, conn } from "@/lib/solana";
 import { readFileSync } from "fs";
 import { toolDefs } from "@/lib/tools/defs";
 import { z } from "zod";

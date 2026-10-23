@@ -1,3 +1,4 @@
+import { fmtUsd } from "@/lib/core/price";
 import { friendlyChainError } from "@/lib/solana/errors";
 // Deterministic Telegram commands (no LLM round-trip): templates, wallet, bots, leaderboard, airdrops, key export.
 import { Bot, InlineKeyboard, type Context } from "grammy";
@@ -59,7 +60,7 @@ export function registerCommands(bot: Bot, h: { converse: (c: Context, t: string
     const [l] = await sql`select name,ticker,fee_label,launched_at from launches where mint=${m}`;
     if (!l) return c.reply(`That coin wasn't launched on ${cfg.brand}.`);
     const ci: any = await coinInfo(m).catch(() => null); const v = await volumeStats(m).catch(() => null);
-    await c.reply(`$${l.ticker} · ${l.name}\nmint ${m}\nfees: ${l.fee_label ?? "—"}\n${ci?.curve ? `curve: ${ci.curve.complete ? "graduated" : `${(ci.curve.progress ?? 0).toFixed?.(1) ?? ci.curve.progress}%`}\n` : ""}${v ? `24h volume: ${(v as any).v24?.toFixed?.(3) ?? 0} SOL\n` : ""}${cfg.appUrl}/token/${m}`, { ...NOLINK, reply_markup: new InlineKeyboard().text("🤖 Boost with bots", `bm:${c.from!.id}:${m}`) });
+    await c.reply(`$${l.ticker} · ${l.name}\nmint ${m}\nfees: ${l.fee_label ?? "—"}\n${ci?.curve ? `curve: ${ci.curve.complete ? "graduated" : `${(ci.curve.progress ?? 0).toFixed?.(1) ?? ci.curve.progress}%`}\n` : ""}${ci?.curve?.mcapQuote != null ? `mcap: ${ci.curve.mcapUsd != null ? fmtUsd(ci.curve.mcapUsd) + " · " : ""}${ci.curve.mcapQuote.toFixed(2)} ${ci.curve.quote} (devnet on-chain${ci.curve.venue === "pumpswap" ? ", PumpSwap" : ""})\n` : ""}${v ? `24h volume: ${(v as any).v24?.toFixed?.(3) ?? 0} SOL\n` : ""}${cfg.appUrl}/token/${m}`, { ...NOLINK, reply_markup: new InlineKeyboard().text("🤖 Boost with bots", `bm:${c.from!.id}:${m}`) });
   });
   bot.command("preview", async c => {
     const id = h.draftId(c); const ctx = await tgCtx(c.from!.id);

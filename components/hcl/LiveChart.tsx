@@ -31,7 +31,7 @@ export default function LiveChart({ mint, height = 360, showTrades = true }: { m
   const last = d?.candles?.at(-1)?.close != null ? d.candles.at(-1).close * um : undefined, first = d?.candles?.[0]?.open != null ? d.candles[0].open * um : undefined; const chg = last && first ? ((last - first) / first) * 100 : 0;
   return <div>
     <div className="flex flex-wrap items-center justify-between gap-3">
-      <div className="flex flex-wrap items-baseline gap-x-5 gap-y-1"><span className="mono text-[20px] font-semibold">{last ? fmtP(last) : "—"} <span className="text-[12px] text-[var(--muted)]">{unit}{um !== 1 && d?.scaled ? " · devnet, mainnet scale" : ""}</span></span>{last && <span className={"mono text-[13px] " + (chg >= 0 ? "up" : "down")}>{chg >= 0 ? "+" : ""}{chg.toFixed(2)}%</span>}
+      <div className="flex flex-wrap items-baseline gap-x-5 gap-y-1"><span className="mono text-[20px] font-semibold">{last ? fmtP(last) : "—"} <span className="text-[12px] text-[var(--muted)]">{unit}</span></span>{last && <span className={"mono text-[13px] " + (chg >= 0 ? "up" : "down")}>{chg >= 0 ? "+" : ""}{chg.toFixed(2)}%</span>}
         {d?.stats && <span className="mono text-[12px] text-[var(--fg-2)]">vol 1h {sol(d.stats.v1, 3)} · 24h {sol(d.stats.v24, 3)} · {d.stats.n24} trades</span>}</div>
       <div className="flex items-center gap-2"><div className="seg">{(["usd", "quote"] as const).map(x => <button key={x} data-on={x === ccy ? "1" : "0"} onClick={() => setCcy(x)}>{x === "usd" ? "USD" : d?.quote ?? "SOL"}</button>)}</div><div className="seg">{IVS.map(x => <button key={x} data-on={x === iv ? "1" : "0"} onClick={() => setIv(x)}>{x}</button>)}</div></div>
     </div>

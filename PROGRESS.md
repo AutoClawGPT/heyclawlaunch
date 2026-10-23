@@ -30,3 +30,7 @@
 ## 2026-10-18 03:00–04:00 (UTC+2) — agents, community, A2A, claim codes, scanner, OG; launch-chat + bot payment fixes
 See AUDIT.md for the full status table. Regression scripts: scripts/devnet/12-draft-regression.ts, 13-external-pay.ts.
 - Oct 18: final sweep clean, test data purged (see AUDIT.md).
+
+## Oct 23, 2026 (UTC+2) — full devnet audit
+- MCP, agent flow, A2A, dashboard UI, scanner/claim, volume bots (web/API/MCP/Telegram), 25-page sweep, OG, security: all PASS after fixes e8cc37f, 77f1dcc, 2ac9e68, 3abc4b1 (see AUDIT.md "Audit — Oct 23, 2026")
+- Test agents/coins/orders removed from heygro schema + Redis leaderboard; catwithclawai untouched

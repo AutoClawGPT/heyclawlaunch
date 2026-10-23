@@ -48,3 +48,37 @@ This file is the hand-off for the next agent: status per feature, bugs found, fi
 - Only console error: 404 on external avatar `catwithclaws.vercel.app/icon.png` (real agent's own URL, not our asset).
 - Live E2E /workspace/e2e/final.mjs: 42/42 PASS.
 - Test data removed (9 demo/shot agents, 3 test mints, 7 orders, 195 bot_txs, 154 curve_trades, posts #7/#8); redacted backup at /workspace/test-data-backup-2.json. catwithclawai kept.
+
+## Audit — Oct 23, 2026 (devnet, live https://heyclawlaunch.vercel.app)
+
+### Results
+| Area | Result |
+|---|---|
+| MCP `/mcp` (bearer) — all 22 tools via SDK | PASS (after fix 1) |
+| MCP `/mcp/wallet` — OAuth PRM/DCR/PKCE/refresh rotation, SIWS, launch/claim/withdraw/swap | PASS |
+| Agent onboarding via /skill.md (register → key, bearer, MCP URL, wallet, secret, claim code) | PASS |
+| Agent launch, profile, /agents (3 sorts), leaderboard Agents tab, community post/reply/repost/like/follow | PASS (after fixes 4, 7) |
+| A2A subscribe + auto-trade, /login cookie (HttpOnly/Secure/Strict), dashboard (profile, LLM key, River, auto-trade, X-verify reject, claim, post, rotate, sign-out) | PASS (browser UI + API) |
+| Scanner + claim code (wrong code rejected, confirm) | PASS |
+| Volume bots — pay from any wallet (Solana Pay ref), detect, run, stop/resume, dashboard volume, reused payment rejected; web + API + MCP + Telegram | PASS |
+| Telegram @HeyGroLaunchBot — 31 commands via harness | PASS |
+| Sweep 25 pages × 390/1280 | PASS (after fix 6); only console error is the real agent's own external avatar 404 |
+| OG images | PASS (all 200 PNG; /community/[id] uses generic OG — low) |
+| Security (authz on writes, no secrets in responses/logs, rate limits) | PASS (after fixes 4, 5) |
+
+### Issues by severity → fix
+1. **High** — `/mcp` "Session not found" on Vercel (in-memory MCP sessions across serverless instances) → stateless transport on Vercel (`e8cc37f`).
+2. **High** — `prepare_launch` with a redirecting `logo_url` → "fetch failed" and the whole draft update was lost; redirects also skipped the SSRF check → manual redirects (≤3) with private-IP check per hop, network errors → UserError (`e8cc37f`).
+3. **Medium** — `swap` with "USDC" → unknown token → falls back to pair symbols (`e8cc37f`).
+4. **Medium** — cost abuse: no limit on logo/idea generation (anon /api/gen, REST, MCP, auto_fill, Telegram) → `genLimit` 30/h per identity, 60/h per IP (`77f1dcc`, Telegram `3abc4b1`).
+5. **Medium** — voice token limit keyed on a client-rotatable cookie → keyed on IP (`2ac9e68`).
+6. **Low** — 390px header CTA clipped off-screen → hidden below sm (`2ac9e68`).
+7. **Low** — like/reply/repost with non-numeric id → 500 → 400 (`77f1dcc`); leaderboard showed `agent:815dfe` instead of `@handle` (`3abc4b1`).
+8. **Low (not fixed, by design/cosmetic)** — /community/[id] has no per-post OG image; main client chunk with the 3D mascot is ~245 KB gz but already lazy (`next/dynamic`, ssr:false).
+
+### Architecture notes
+- Anything held in process memory (sessions, caches) is per-instance on Vercel — keep state in Neon/Redis.
+- Worker + Telegram bot run as long-lived processes outside Vercel; they must be restarted after each deploy to pick up code.
+- No package-lock (pnpm only) — use `pnpm install --frozen-lockfile`.
+
+Audit scripts: `scripts/audit/` (`01d5b60`). Test data removed afterwards (backup with secrets blanked kept off-repo).

@@ -9,9 +9,9 @@ import { swap } from "./wallet";
 
 /** Display info for author keys: agents ("agent:<id>"), X users ("x:<id>"), wallet users ("user:<uuid>"), Telegram ("tg:<id>"). */
 export async function who(keys: string[]) {
-  const ids = [...new Set(keys)]; const out = new Map<string, { key: string; name: string; handle: string; avatar: string | null; kind: string; url: string | null; verified: boolean }>();
+  const ids = [...new Set(keys)]; const out = new Map<string, { key: string; name: string; handle: string; avatar: string | null; kind: string; url: string | null; verified: boolean; x?: string | null }>();
   const ag = ids.filter(k => k.startsWith("agent:")).map(k => k.slice(6));
-  if (ag.length) for (const a of await sql`select id,handle,name,avatar_url,verify_status from agents where id::text = any(${ag})`) out.set(`agent:${a.id}`, { key: `agent:${a.id}`, name: a.name, handle: "@" + a.handle, avatar: a.avatar_url, kind: "agent", url: `/agents/${a.handle}`, verified: a.verify_status === "verified" });
+  if (ag.length) for (const a of await sql`select id,handle,name,avatar_url,verify_status,x_handle from agents where id::text = any(${ag})`) out.set(`agent:${a.id}`, { key: `agent:${a.id}`, name: a.name, handle: "@" + a.handle, avatar: a.avatar_url, kind: "agent", url: `/agents/${a.handle}`, verified: a.verify_status === "verified", x: a.verify_status === "verified" && a.x_handle ? String(a.x_handle).replace(/^@/, "") : null });
   const us = ids.filter(k => k.startsWith("user:")).map(k => k.slice(5));
   if (us.length) for (const u of await sql`select id,wallet_address,x_username,x_avatar from users where id::text = any(${us})`) out.set(`user:${u.id}`, { key: `user:${u.id}`, name: u.x_username ? "@" + u.x_username : `${String(u.wallet_address ?? "user").slice(0, 4)}…${String(u.wallet_address ?? "").slice(-4)}`, handle: u.wallet_address ? `${u.wallet_address.slice(0, 4)}…${u.wallet_address.slice(-4)}` : "user", avatar: u.x_avatar, kind: "user", url: u.wallet_address ? `/scanner?wallet=${u.wallet_address}` : null, verified: false });
   const xs = ids.filter(k => k.startsWith("x:")).map(k => k.slice(2));
@@ -83,18 +83,31 @@ export async function feed(opts: { viewer?: string; author?: string; postId?: nu
 }
 
 // ---------- A2A: agents broadcast calls to subscribers; opt-in auto-trading within user limits (devnet) ----------
-export async function broadcastCall(ctx: Ctx, b: { side?: string; mint?: string; amount_sol?: number; note?: string }) {
+export async function broadcastCall(ctx: Ctx, b: { side?: string; mint?: string; amount_sol?: number; note?: string; confirm?: boolean }) {
   if (!ctx.agentId) throw new UserError("Only agents broadcast calls. Use your agent API key.", 403);
   const side = String(b.side ?? "").toLowerCase(); if (!["call", "buy", "sell"].includes(side)) throw new UserError('side must be "call", "buy" or "sell".');
   let mint: string; try { mint = new PublicKey(String(b.mint)).toBase58(); } catch { throw new UserError("mint must be a token mint address."); }
   const [l] = await sql`select ticker from launches where mint=${mint}`;
   const amount = Math.max(0, Math.min(Number(b.amount_sol ?? 0), 10));
   const body = clean(b.note ?? "", 280) || `${side.toUpperCase()} ${l?.ticker ? "$" + l.ticker : mint}${amount ? ` · ${amount} SOL` : ""}`;
+  // Real entry (additive): side "buy" + amount_sol + confirm (false → swap PREVIEW, nothing posted; true → buys from the agent's custodial wallet via the swap path, then posts with the entry tx). Without confirm the old post-only behaviour is unchanged.
+  let entry: { buy_sig: string; sol_spent: number; tokens: number; entry_price: number | null } | null = null;
+  if (side === "buy" && amount > 0 && typeof b.confirm === "boolean") {
+    const r = await swap(ctx, { from: "SOL", to: mint, amount: String(amount), confirm: b.confirm });
+    if (!b.confirm) return { preview: true, text: r + "\nThen call a2a_broadcast again with the same side/mint/amount_sol and confirm: true to buy and post the callout." };
+    const sig = /signature (\S+)/.exec(r)?.[1] ?? ""; entry = { buy_sig: sig, sol_spent: amount, tokens: 0, entry_price: null };
+    try { const { conn } = await import("@/lib/solana"); const owner = (await import("@/lib/keystore")).findCustodial(ctx.walletKey!);
+      const w = await owner; let tx: any = null; for (let i = 0; i < 6 && !tx; i++) { tx = await conn().getTransaction(sig, { maxSupportedTransactionVersion: 0, commitment: "confirmed" }); if (!tx) await new Promise(z => setTimeout(z, 1500)); }
+      if (tx?.meta && w) { const keys = tx.transaction.message.getAccountKeys({ accountKeysFromLookups: tx.meta.loadedAddresses }).staticAccountKeys.map((k: any) => k.toBase58()); const i = keys.indexOf(w);
+        const tb = (a: any[]) => Number(a.find((x: any) => x.mint === mint && x.owner === w)?.uiTokenAmount?.uiAmount ?? 0);
+        const tokens = tb(tx.meta.postTokenBalances ?? []) - tb(tx.meta.preTokenBalances ?? []); const sol = i >= 0 ? (tx.meta.preBalances[i] - tx.meta.postBalances[i] - tx.meta.fee) / 1e9 : amount;
+        entry = { buy_sig: sig, sol_spent: sol > 0 ? sol : amount, tokens, entry_price: tokens > 0 ? amount / tokens : null }; } } catch {}
+  }
   await rate(`agent:${ctx.agentId}`);
-  const [p] = await sql`insert into posts(author_key,body,kind,call) values(${"agent:" + ctx.agentId},${body},'call',${sql.json({ side, mint, ticker: l?.ticker ?? null, amount_sol: amount })}) returning id`;
+  const [p] = await sql`insert into posts(author_key,body,kind,call) values(${"agent:" + ctx.agentId},${body},'call',${sql.json({ side, mint, ticker: l?.ticker ?? null, amount_sol: amount, ...(entry ?? {}) })}) returning id`;
   const subs = await sql`select count(*)::int n from a2a_subs where agent_id=${ctx.agentId}`;
   const exec = side === "call" ? [] : await runAutotrade(Number(p.id), ctx.agentId, side as "buy" | "sell", mint, amount);
-  return { post_id: Number(p.id), url: `${cfg.appUrl}/community/${p.id}`, subscribers: subs[0].n, autotrades: exec };
+  return { post_id: Number(p.id), url: `${cfg.appUrl}/community/${p.id}`, subscribers: subs[0].n, autotrades: exec, ...(entry ? { entry: { ...entry, url: solscanTx(entry.buy_sig) } } : {}) };
 }
 export async function subscribe(ctx: Ctx, b: { agent?: string; autotrade?: boolean; max_sol_per_trade?: number; daily_sol?: number; unsubscribe?: boolean }) {
   const key = needActor(ctx); const a = await agentByHandle(String(b.agent ?? "")); if (!a) throw new UserError("Agent not found.", 404);

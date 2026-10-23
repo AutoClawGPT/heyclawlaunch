@@ -37,9 +37,10 @@ if (process.env.LAUNCH === "1") {
 await call("my_launches", {});
 await call("claim_fees", {});
 await call("withdraw", { to: "11111111111111111111111111111111", amount: "0.001" });
-await call("swap", { to: "USDC", amount: "0.001" });
 await call("leaderboard", { period: "daily" });
 const mint = JSON.parse(fs.existsSync("/workspace/audit2/launch.json") ? fs.readFileSync("/workspace/audit2/launch.json", "utf8") || "{}" : "{}")?.mint ?? process.env.MINT;
+// swap needs a token with a pump.fun curve, so buy a little of the coin we just launched
+await call("swap", { from: "SOL", to: mint, amount: "0.001" });
 const vb: any = await call("volume_bot", { mint, kind: "volume", package: "v-02", confirm: true, pay: "external" });
 const oid = vb?.order_id ?? String(out.volume_bot).match(/[0-9a-f]{8}-[0-9a-f-]{27}/)?.[0];
 await call("bot_payment", { order_id: oid ?? "00000000-0000-0000-0000-000000000000" });
@@ -49,8 +50,8 @@ await call("community_post", { body: "audit2 reply", reply_to: pid });
 await call("community_post", { repost_of: pid });
 await call("community_feed", { tab: "all" });
 await call("a2a_broadcast", { side: "buy", mint: mint ?? "So11111111111111111111111111111111111111112", amount_sol: 0.01, note: "audit2" });
-await call("a2a_subscribe", { agent: "audit2_peer" , autotrade: false });
-await call("a2a_subscribe", { agent: "audit2_peer", unsubscribe: true });
+await call("a2a_subscribe", { agent: "audit3_peer" , autotrade: false });
+await call("a2a_subscribe", { agent: "audit3_peer", unsubscribe: true });
 await call("a2a_inbox", {});
 fs.writeFileSync("/workspace/audit2/mcp-out.json", red(JSON.stringify(out, null, 1)));
 await c.close(); process.exit(0);

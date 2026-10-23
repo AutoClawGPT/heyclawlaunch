@@ -1,9 +1,9 @@
 "use client";
 import { useState } from "react";
-import { AnimatePresence, motion } from "framer-motion";
+import { AnimatePresence, motion, MotionConfig } from "framer-motion";
 import SignIn from "@/components/SignIn";
 type T = { id: string; name: string; ticker: string; description: string | null; logo_url?: string; logo_src?: string; pair: string; theme: string | null };
-export default function TemplatesClient({ templates, signedIn }: { templates: T[]; signedIn: boolean }) {
+function TemplatesClientInner({ templates, signedIn }: { templates: T[]; signedIn: boolean }) {
   const [sel, setSel] = useState<T | null>(null); const [draft, setDraft] = useState<any>(null); const [busy, setBusy] = useState(false); const [err, setErr] = useState(""); const [live, setLive] = useState<any>(null);
   async function call(body: any) { setBusy(true); setErr(""); try { const r = await fetch("/api/templates", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify(body) }); const j = await r.json(); if (!r.ok) throw new Error(j.error); return j; } catch (e: any) { setErr(e.message); return null; } finally { setBusy(false); } }
   async function pick(t: T) { setSel(t); setDraft(null); setLive(null); setErr(""); if (!signedIn) return; const j = await call({ action: "draft", id: t.id }); if (j) setDraft(j); }
@@ -29,3 +29,6 @@ export default function TemplatesClient({ templates, signedIn }: { templates: T[
       </motion.div></motion.div>}</AnimatePresence>
   </>;
 }
+
+// MotionConfig lives here (not in the root layout) so framer-motion only ships on pages that animate with it.
+export default function TemplatesClient(p: { templates: T[]; signedIn: boolean }) { return <MotionConfig reducedMotion="user"><TemplatesClientInner {...p} /></MotionConfig>; }

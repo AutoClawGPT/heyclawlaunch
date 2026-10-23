@@ -1,12 +1,12 @@
 "use client";
 import { useEffect, useState } from "react";
-import { AnimatePresence, motion } from "framer-motion";
+import { AnimatePresence, motion, MotionConfig } from "framer-motion";
 import ExternalPay from "./ExternalPay";
 import { usePoll, sol, ago, short, ipfsImg } from "./ui";
 import LiveChart from "./LiveChart";
 const FILTERS = [["all", "All"], ["new", "New"], ["graduating", "About to graduate"], ["graduated", "Graduated"]] as const;
 const ICON: Record<string, string> = { volume: "📈", bump: "⏫", buy: "🟢", sell: "🔻", holders: "👥" };
-export default function BotsClient() {
+function BotsClientInner() {
   const [filter, setFilter] = useState("all");
   const [d, reload] = usePoll<any>(`/api/bots?filter=${filter}${typeof window !== "undefined" && new URLSearchParams(window.location.search).get("mint") ? `&mint=${new URLSearchParams(window.location.search).get("mint")}` : ""}`, 8000, null);
   const [feed] = usePoll<any>(`/api/bots?what=feed`, 2500, { feed: [] });
@@ -49,3 +49,6 @@ export default function BotsClient() {
     </aside>
   </div>;
 }
+
+// MotionConfig lives here (not in the root layout) so framer-motion only ships on pages that animate with it.
+export default function BotsClient() { return <MotionConfig reducedMotion="user"><BotsClientInner  /></MotionConfig>; }

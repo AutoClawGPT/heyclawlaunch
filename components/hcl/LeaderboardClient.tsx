@@ -1,9 +1,9 @@
 "use client";
 import { useState } from "react";
-import { motion } from "framer-motion";
+import { motion, MotionConfig } from "framer-motion";
 import { usePoll, Countdown, sol, ago, short } from "./ui";
 const medal = ["🥇", "🥈", "🥉"];
-export default function LeaderboardClient() {
+function LeaderboardClientInner() {
   const [period, setPeriod] = useState<"daily" | "weekly" | "all">("daily");
   const [d] = usePoll<any>(`/api/leaderboard?period=${period}`, 5000, null);
   const prizes = d ? (period === "daily" ? d.prizes.daily : period === "weekly" ? d.prizes.weekly : []) : [];
@@ -24,3 +24,6 @@ export default function LeaderboardClient() {
     </aside>
   </div>;
 }
+
+// MotionConfig lives here (not in the root layout) so framer-motion only ships on pages that animate with it.
+export default function LeaderboardClient() { return <MotionConfig reducedMotion="user"><LeaderboardClientInner  /></MotionConfig>; }

@@ -5,6 +5,8 @@ export const options = () => new Response(null, { status: 204, headers: CORS });
 /** Wraps a JSON API handler: UserError -> its status, anything else -> 500 without internals. */
 export function api(fn: (req: Request, p: any) => Promise<unknown>) {
   return async (req: Request, p: any) => {
+    const { limitIp } = await import("@/lib/ratelimit");
+    const busy = await limitIp(req, req.method === "GET" ? "api-r" : "api-w", req.method === "GET" ? 300 : 60); if (busy) return busy;
     try { const r = await fn(req, p); return r instanceof Response ? withCors(r) : json(r); }
     catch (e: any) { const { UserError } = await import("@/lib/core/validate"); if (e instanceof UserError) return json({ error: e.message }, e.status ?? 400); console.error(e); return json({ error: "Something went wrong. Try again." }, 500); }
   };

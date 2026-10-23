@@ -4,6 +4,7 @@ import BN from "bn.js";
 import bs58 from "bs58";
 import { PUMP_SDK, OnlinePumpSdk, feeSharingConfigPda, bondingCurvePda } from "./pump";
 import { cfg } from "@/lib/config";
+import { isTransient } from "./errors";
 
 export const RENT_ZERO = 650_240;
 const g = globalThis as unknown as { __conn?: Connection };
@@ -18,17 +19,31 @@ export function parseSecret(raw: string): Keypair {
 let _launch: Keypair | undefined;
 export const launchWallet = () => (_launch ??= parseSecret(process.env.LAUNCH_WALLET_SECRET!));
 
+const sleep = (ms: number) => new Promise(r => setTimeout(r, ms));
 export async function sendV0(ixs: TransactionInstruction[], signers: Keypair[], payer = signers[0].publicKey) {
   const c = conn();
-  const { blockhash, lastValidBlockHeight } = await c.getLatestBlockhash("confirmed");
-  const msg = new TransactionMessage({ payerKey: payer, recentBlockhash: blockhash, instructions: ixs }).compileToV0Message();
-  const tx = new VersionedTransaction(msg);
-  tx.sign(signers);
-  const sim = await c.simulateTransaction(tx, { sigVerify: false });
-  if (sim.value.err) throw new Error(`simulation failed: ${JSON.stringify(sim.value.err)} ${(sim.value.logs ?? []).slice(-6).join(" | ")}`);
+  let tx!: VersionedTransaction, blockhash = "", lastValidBlockHeight = 0;
+  for (let i = 0; ; i++) { // retry transient RPC errors before anything is sent
+    try {
+      ({ blockhash, lastValidBlockHeight } = await c.getLatestBlockhash("confirmed"));
+      tx = new VersionedTransaction(new TransactionMessage({ payerKey: payer, recentBlockhash: blockhash, instructions: ixs }).compileToV0Message());
+      tx.sign(signers);
+      const sim = await c.simulateTransaction(tx, { sigVerify: false });
+      if (sim.value.err) throw new Error(`simulation failed: ${JSON.stringify(sim.value.err)} ${(sim.value.logs ?? []).slice(-6).join(" | ")}`);
+      break;
+    } catch (e) { if (i >= 2 || !isTransient(e)) throw e; await sleep(600 * (i + 1) ** 2); }
+  }
   const sig = await c.sendRawTransaction(tx.serialize(), { skipPreflight: true, maxRetries: 3 });
-  const res = await c.confirmTransaction({ signature: sig, blockhash, lastValidBlockHeight }, "confirmed");
-  if (res.value.err) throw new Error(`tx ${sig} failed: ${JSON.stringify(res.value.err)}`);
+  try {
+    const res = await c.confirmTransaction({ signature: sig, blockhash, lastValidBlockHeight }, "confirmed");
+    if (res.value.err) throw new Error(`tx ${sig} failed: ${JSON.stringify(res.value.err)}`);
+  } catch (e) { // confirmation can time out/expire even though the tx landed: check before reporting failure
+    if (String((e as any)?.message).startsWith(`tx ${sig} failed`)) throw e;
+    const st = (await c.getSignatureStatuses([sig], { searchTransactionHistory: true }).catch(() => null))?.value?.[0];
+    if (st && !st.err && (st.confirmationStatus === "confirmed" || st.confirmationStatus === "finalized")) return sig;
+    if (st?.err) throw new Error(`tx ${sig} failed: ${JSON.stringify(st.err)}`);
+    throw e;
+  }
   return sig;
 }
 

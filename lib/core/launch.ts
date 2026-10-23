@@ -1,3 +1,4 @@
+import { friendlyChainError } from "@/lib/solana/errors";
 import { PublicKey } from "@solana/web3.js";
 import { sql } from "@/lib/db";
 import { cfg } from "@/lib/config";
@@ -67,11 +68,13 @@ export async function confirmLaunch(ctx: Ctx, draftId: string): Promise<LaunchRe
   await takeLimit(keys); // rolls back by itself when over the limit
   const [lock] = await sql`update drafts set status='launching', updated_at=now() where id=${d.id} and status='ready' returning id`;
   if (!lock) { await releaseLimit(keys); throw new UserError("This coin is already launching."); }
+  let createdMint: string | null = null;
   try {
     const meta: Record<string, unknown> = { name: d.name, symbol: d.ticker, description: d.description ?? "", image: gatewayUrl(d.logo_cid), showName: true, createdOn: cfg.appUrl, website: d.website || cfg.appUrl };
     if (d.x) meta.twitter = d.x; if (d.telegram) meta.telegram = d.telegram;
     const metaCid = await pinJson(meta);
-    const { mint, sig } = await createCoin({ name: d.name, symbol: d.ticker, uri: gatewayUrl(metaCid), holders: d.fee_mode === "holders", quoteMint: new PublicKey(d.pair_mint), creatorFeeBps: d.creator_fee_bps ?? undefined });
+    const created = await createCoin({ name: d.name, symbol: d.ticker, uri: gatewayUrl(metaCid), holders: d.fee_mode === "holders", quoteMint: new PublicKey(d.pair_mint), creatorFeeBps: d.creator_fee_bps ?? undefined });
+    const { mint, sig } = created; createdMint = mint.toBase58();
     const [l] = await sql`insert into launches(draft_id,owner_key,mint,create_sig,split_status,metadata_cid,creator,recipient,quote_mint,is_holder_reward,creator_fee_bps,name,ticker,logo_cid,fee_label)
       values(${d.id},${ctx.ownerKey},${mint.toBase58()},${sig},${recipient ? "pending" : "none"},${metaCid},${launch.publicKey.toBase58()},${recipient},${d.pair_mint},${d.fee_mode === "holders"},${d.creator_fee_bps},${d.name},${d.ticker},${d.logo_cid},${feeLabel(d)}) returning *`;
     [d] = await sql<Draft[]>`update drafts set status='launched', updated_at=now() where id=${d.id} returning *`;
@@ -81,11 +84,15 @@ export async function confirmLaunch(ctx: Ctx, draftId: string): Promise<LaunchRe
     if (code) { r.claimCode = code; r.text += `\n  CLAIM CODE (shown once, save it): ${code}\n  Claim fees any time at ${cfg.appUrl}/claim with your wallet + this code, or by connecting that wallet.`; }
     return r;
   } catch (e: any) {
+    if (createdMint) { // the coin exists on chain: never report "nothing was created" or free the limit
+      await sql`insert into audit_log(actor,action,detail) values('system','launch_post_create_failed',${sql.json({ draftId: d.id, mint: createdMint, error: String(e?.message ?? e).slice(0, 500) })})`.catch(() => {});
+      throw new UserError(`Your coin was created on chain (mint ${createdMint}) but saving it hit an error. Don't relaunch — it's safe; check ${cfg.appUrl}/token/${createdMint} in a minute or contact support.`);
+    }
     await releaseLimit(keys);
     await sql`update drafts set status='ready', error=${String(e?.message ?? e).slice(0, 500)} where id=${d.id}`;
     if (e instanceof UserError) throw e;
     if (String(e?.message).includes("\"Custom\":6084")) throw new UserError("pump.fun has holder-reward coins disabled on this cluster right now. Choose fees to a wallet or an X account instead.");
-    throw new UserError(`The launch failed and nothing was created: ${String(e?.message ?? e).slice(0, 200)}`);
+    throw new UserError(`The launch failed and nothing was created: ${friendlyChainError(e)}`);
   }
 }
 function okText(d: Draft, l: any): LaunchResult {

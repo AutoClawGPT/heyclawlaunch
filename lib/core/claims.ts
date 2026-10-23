@@ -1,3 +1,4 @@
+import { friendlyChainError } from "@/lib/solana/errors";
 import { randomBytes, createHash, timingSafeEqual } from "crypto";
 import { PublicKey, LAMPORTS_PER_SOL } from "@solana/web3.js";
 import { sql } from "@/lib/db";
@@ -56,7 +57,7 @@ export async function claimTo(wallet: string, mints: string[], via: string) {
       await sql`insert into fee_claims(mint,wallet,lamports,sig,via) values(${c.mint},${wallet},${Math.max(0, got)},${r.sig},${via}) on conflict do nothing`;
       await sql`update claim_codes set last_used_at=now() where mint=${c.mint}`;
       out.push({ mint: c.mint, ticker: c.ticker, sol: Math.max(0, got) / 1e9, sig: r.sig });
-    } catch (e: any) { out.push({ mint: c.mint, ticker: c.ticker, note: `failed: ${String(e.message).slice(0, 120)}` }); }
+    } catch (e: any) { out.push({ mint: c.mint, ticker: c.ticker, note: `failed: ${friendlyChainError(e)}` }); }
   }
   return out.map(o => ({ ...o, url: o.sig ? solscanTx(o.sig) : undefined }));
 }

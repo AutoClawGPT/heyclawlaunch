@@ -1,3 +1,4 @@
+import { friendlyChainError } from "@/lib/solana/errors";
 // Volume bots (devnet SOL only): volume, bump, buy, sell, holders. Paid from the user's custodial wallet,
 // executed with encrypted per-order bot wallets funded from the launch wallet (keeps a reserve).
 import { PublicKey } from "@solana/web3.js";
@@ -123,7 +124,7 @@ export async function botTickOnce() {
     } catch (e: any) {
       const msg = String(e?.message ?? e).slice(0, 300); await log(o, "error", 0n, "", null, msg);
       const fatal = /graduated|reserve/.test(msg);
-      await sql`update bot_orders set error=${msg}, status=${fatal ? "stopped" : "running"}, updated_at=now() where id=${o.id}`;
+      await sql`update bot_orders set error=${friendlyChainError(msg)}, status=${fatal ? "stopped" : "running"}, updated_at=now() where id=${o.id}`;
       if (fatal) { try { await sweep(o, 0, o.kind !== "buy"); } catch {} }
     }
   }

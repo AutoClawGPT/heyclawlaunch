@@ -1,3 +1,4 @@
+import { friendlyChainError } from "@/lib/solana/errors";
 // Deterministic Telegram commands (no LLM round-trip): templates, wallet, bots, leaderboard, airdrops, key export.
 import { Bot, InlineKeyboard, type Context } from "grammy";
 import bs58 from "bs58";
@@ -18,7 +19,7 @@ import { hasRedis } from "@/lib/redis";
 import { tgCtx } from "@/lib/bots/telegram";
 
 const sol = (l: number | bigint) => (Number(l) / LAMPORTS_PER_SOL).toLocaleString("en-US", { maximumFractionDigits: 4 });
-const err = (e: any) => String(e?.message ?? e).slice(0, 600);
+const err = (e: any) => e?.name === "UserError" || e?.status ? String(e?.message ?? e).slice(0, 600) : friendlyChainError(e);
 const NOLINK = { link_preview_options: { is_disabled: true } } as const;
 const until = (iso: string) => { const s = Math.max(0, (+new Date(iso) - Date.now()) / 1000); return `${Math.floor(s / 3600)}h ${Math.floor((s % 3600) / 60)}m`; };
 const botSel = new Map<number, { mint?: string; kind?: Kind }>();

@@ -54,7 +54,7 @@ export default function TokenTerminal(p: TokenProps) {
         </div>
       </section>
       {/* B. chart */}
-      <Chart d={d} iv={iv} setIv={setIv} ccy={ccy} setCcy={setCcy} mode={mode} setMode={setMode} supply={p.supply} q={q} ticker={p.ticker} priceUsd={priceUsd} chg={chg24} calls={ts?.calls} />
+      <Chart d={d} iv={iv} setIv={setIv} ccy={ccy} setCcy={setCcy} mode={mode} setMode={setMode} supply={p.supply} q={q} ticker={p.ticker} priceUsd={priceUsd} pq={pq} chg={chg24} calls={ts?.calls} />
       {/* mobile: trade + stats right under the chart */}
       <div className="flex flex-col gap-3 lg:hidden"><TradePanel {...p} usd={usdReal} /><Stats ts={ts} usd={usdReal} price={pq} /><Curve {...p} liqUsd={liqUsd} mcapUsd={mcapUsd} /></div>
       <LiveTrades d={raw} />
@@ -70,7 +70,7 @@ export default function TokenTerminal(p: TokenProps) {
   </div>;
 }
 
-function Chart({ d, iv, setIv, ccy, setCcy, mode, setMode, supply, q, ticker, priceUsd, chg, calls }: any) {
+function Chart({ d, iv, setIv, ccy, setCcy, mode, setMode, supply, q, ticker, priceUsd, pq, chg, calls }: any) {
   const el = useRef<HTMLDivElement>(null); const chart = useRef<IChartApi | null>(null); const cs = useRef<ISeriesApi<"Candlestick"> | null>(null); const vs = useRef<ISeriesApi<"Histogram"> | null>(null); const fit = useRef("");
   useEffect(() => {
     if (!el.current) return;
@@ -91,10 +91,12 @@ function Chart({ d, iv, setIv, ccy, setCcy, mode, setMode, supply, q, ticker, pr
   const marks = useMemo<CallMark[]>(() => (calls ?? []).map((c: any) => ({ id: c.id, t: Math.floor(+new Date(c.created_at) / 1000), name: c.author, avatar: c.avatar, href: c.url })), [calls]);
   const last = d?.candles?.at(-1); const m = (ccy === "usd" && d?.usd_per_quote ? d.usd_per_quote : 1) * (mode === "mcap" ? supply : 1);
   const fmt = (v: number) => ccy === "usd" ? (mode === "mcap" ? usdCompact(v) : priceSub(v)) : (mode === "mcap" ? numCompact(v, 2) + " " + q : priceSub(v, "") + " " + q);
+  /* header follows the selected mode/currency with the same multiplier as the y-axis and O/H/L/C (MCap → market cap, Price → price; USD is mainnet-equivalent via usd_per_quote) */
+  const hq: number | null = pq ?? last?.close ?? null; const head = d?.candles && hq != null ? fmt(hq * m) : mode === "mcap" && ccy === "usd" && priceUsd != null ? usdCompact(priceUsd * supply) : priceSub(priceUsd);
   return <section className="card p-3 sm:p-4" data-sec="chart">
     <div className="flex flex-wrap items-end justify-between gap-2">
       <div><div className="mono text-[12px] text-[var(--muted)]">{ticker}/{q} · {mode === "mcap" ? "Market cap" : "Price"} ({ccy === "usd" ? "USD" : q})</div>
-        <div className="mono flex items-baseline gap-2"><span className="text-[22px] font-bold tabular-nums" data-testid="price">{priceSub(priceUsd)}</span><span className={"text-[13px] font-semibold " + ((chg ?? 0) >= 0 ? "up" : "down")}>{pct(chg)} <span className="font-normal text-[var(--muted)]">24h</span></span></div>
+        <div className="mono flex items-baseline gap-2"><span className="text-[22px] font-bold tabular-nums" data-testid="price">{head}</span><span className={"text-[13px] font-semibold " + ((chg ?? 0) >= 0 ? "up" : "down")}>{pct(chg)} <span className="font-normal text-[var(--muted)]">24h</span></span></div>
         {last && <div className="mono text-[11px] text-[var(--muted)]">O {fmt(last.open * m)} H {fmt(last.high * m)} L {fmt(last.low * m)} C {fmt(last.close * m)}</div>}</div>
       <div className="flex flex-wrap items-center gap-1.5"><div className="seg">{IVS.map(x => <button key={x} data-on={x === iv ? "1" : "0"} onClick={() => setIv(x)}>{x}</button>)}</div>
         <div className="seg">{(["price", "mcap"] as const).map(x => <button key={x} data-on={x === mode ? "1" : "0"} onClick={() => setMode(x)}>{x === "mcap" ? "MCap" : "Price"}</button>)}</div>

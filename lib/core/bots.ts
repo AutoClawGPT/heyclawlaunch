@@ -28,6 +28,18 @@ export const KINDS: Record<Kind, { title: string; desc: string; pkgs: Pkg[] }> =
 };
 export const RESERVE = BigInt(Math.round(Number(process.env.BOT_RESERVE_SOL ?? "1") * 1e9)); // launch wallet never goes below this for bots
 const MAX_ACTIVE = 4;
+/** Capital still owed to active orders (package working capital minus what was already moved to their bot wallets). */
+async function committedCapital() {
+  const rows = await sql`select o.kind, o.package, coalesce((select sum(case when t.side='fund' then t.lamports when t.side='sweep' then -t.lamports else 0 end) from bot_txs t where t.order_id=o.id and t.ok),0)::text net from bot_orders o where o.status in ('queued','running')`;
+  let c = 0n; for (const r of rows) { const k = KINDS[r.kind as Kind]?.pkgs.find(x => x.id === r.package); if (!k) continue; const out = BigInt(r.net); if (k.capital > out) c += k.capital - (out > 0n ? out : 0n); }
+  return c;
+}
+/** Refuse only if, after this order's payment arrives, the platform wallet can't cover this order's working capital plus every active order's outstanding capital on top of the reserve. */
+async function checkCapacity(p: Pkg) {
+  const lw = BigInt(await conn().getBalance(launchWallet().publicKey)); const committed = await committedCapital();
+  const free = lw + p.price - committed - RESERVE;
+  if (free < p.capital) throw new UserError(`Bot capacity is full right now: this ${p.name} package needs ${fmt(p.capital)} SOL of working capital, but the platform bot wallet only has ${fmt(free > 0n ? free : 0n)} SOL free (balance ${fmt(lw)} SOL, ${fmt(committed)} SOL committed to running bots, ${fmt(RESERVE)} SOL reserve). You were not charged. Try a smaller package, or again in a few minutes when running bots finish.`);
+}
 export const findPkg = (kind: string, id: string) => { const k = KINDS[kind as Kind]; const p = k?.pkgs.find(p => p.id === id); if (!p) throw new UserError(`Unknown package ${id} for ${kind}. Options: ${k ? k.pkgs.map(p => p.id).join(", ") : Object.keys(KINDS).join(", ")}`); return p; };
 const fmt = (l: bigint | number) => (Number(l) / 1e9).toFixed(4).replace(/0+$/, "").replace(/\.$/, "");
 
@@ -55,8 +67,7 @@ export async function orderBot(ctx: any, a: { mint: string; kind: string; packag
   /* graduated coins trade on their PumpSwap pool (lib/trade/curve.ts routes automatically) */
   const wallet = new PublicKey(await getOrCreateCustodial(key)); const bal = BigInt(await conn().getBalance(wallet));
   if (kind === "sell") { const tb = await tokenBalance(wallet, mint); if (tb === 0n) throw new UserError(`Your wallet holds no $${coin.ticker} to sell.`); }
-  const lw = BigInt(await conn().getBalance(launchWallet().publicKey));
-  if (lw + p.price - p.capital < RESERVE) throw new UserError("Bot capacity is used up right now (the platform wallet is at its reserve). Try again later.");
+  await checkCapacity(p);
   const [{ n }] = await sql`select count(*)::int n from bot_orders where status in ('queued','running')`; if (n >= MAX_ACTIVE) throw new UserError("All bot slots are busy. Try again in a few minutes.");
   const preview = `PREVIEW: ${KINDS[kind].title} · ${p.name} on $${coin.ticker} (${coin.name})\n${p.blurb}\nprice: ${fmt(p.price)} devnet SOL from your wallet ${wallet.toBase58()} (balance ${fmt(bal)})\n${p.volume ? `target volume: ~${fmt(p.volume)} SOL · ` : ""}${p.trades} ${kind === "holders" ? "new holders" : "trades"}\nruns on: pump.fun bonding curve (${cfg.cluster}), real transactions`;
   if (bal < p.price + 5_000_000n) throw new UserError(`${preview}\n\nNot enough SOL: you need ${fmt(p.price + 5_000_000n)} SOL (price + fees). Fund your wallet, or pay from any wallet: call again with pay: \"external\" to get a deposit address, exact amount and a unique reference.`);
@@ -77,7 +88,7 @@ const botKey = (o: any, i = 0) => `bot:${o.id}:${i}`;
 async function fund(o: any, i: number, lamports: bigint) {
   const pk = new PublicKey(await getOrCreateCustodial(botKey(o, i)));
   const have = BigInt(await conn().getBalance(pk)); if (have >= lamports) return pk;
-  const lw = BigInt(await conn().getBalance(launchWallet().publicKey)); if (lw - (lamports - have) < RESERVE) throw new Error("platform reserve reached");
+  const lw = BigInt(await conn().getBalance(launchWallet().publicKey)); if (lw - (lamports - have) < RESERVE) throw new Error(`platform reserve reached (platform wallet ${fmt(lw)} SOL, reserve ${fmt(RESERVE)} SOL)`);
   const sig = await sendSol(launchWallet(), pk, lamports - have); await log(o, "fund", lamports - have, pk.toBase58(), sig); return pk;
 }
 async function sweep(o: any, i: number, sellFirst: boolean) {
@@ -144,6 +155,7 @@ export async function orderBotExternal(ctx: any, a: { mint: string; kind: string
   const [coin] = await sql`select name, ticker, quote_mint from launches where mint=${mint.toBase58()}`;
   if (!coin) throw new UserError(`Volume bots only run on coins launched on ${cfg.brand}.`);
   /* graduated coins trade on their PumpSwap pool (lib/trade/curve.ts routes automatically) */
+  await checkCapacity(p);
   const ref = (await import("@solana/web3.js")).Keypair.generate().publicKey.toBase58(); const to = launchWallet().publicKey.toBase58();
   const [o] = await sql`insert into bot_orders(owner_key,mint,kind,package,price_lamports,target_volume_lamports,max_trades,status,pay_ref,pay_to,pay_expires_at) values(${owner},${mint.toBase58()},${kind},${p.id},${p.price.toString()},${p.volume.toString()},${p.trades},'awaiting_payment',${ref},${to},now() + make_interval(mins => ${PAY_TTL_MIN})) returning id`;
   const amount = Number(p.price) / 1e9;

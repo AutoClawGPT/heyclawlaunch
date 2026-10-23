@@ -25,6 +25,7 @@ async function withClient<T>(fn: (c: PoolClient) => Promise<T>): Promise<T> {
   const c: any = await pool().connect();
   try { if (!c.__sp) { await c.query(`set search_path to ${SCHEMA}`); c.__sp = 1; } return await fn(c); } finally { c.release(); }
 }
+// eslint-disable-next-line @typescript-eslint/no-unused-vars -- T lets callers annotate sql<Row[]>`…`
 type Sql = (<T = any>(s: TemplateStringsArray | Record<string, unknown>, ...v: unknown[]) => any) & { json: (v: unknown) => Json; unsafe: (t: string) => Promise<any[]>; begin: <T>(fn: (tx: Sql) => Promise<T>) => Promise<T>; end: () => Promise<void> };
 function make(run: (text: string, values: unknown[]) => Promise<any[]>, txRunner?: Sql["begin"]): Sql {
   const f: any = (s: any, ...v: unknown[]) => {

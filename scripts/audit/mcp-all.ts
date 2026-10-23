@@ -28,7 +28,7 @@ const d1: any = await call("prepare_launch", { start_new: true, name: "Audit Cra
 const did = d1?.draft_id ?? String(out.prepare_launch).match(/draft_id: ([0-9a-f-]{36})/)?.[1];
 await call("get_logo_upload_link", { draft_id: did });
 await call("generate_logo", { prompt: "a cartoon crab with a magnifying glass", draft_id: did, apply_to_draft: false });
-const d2: any = await call("prepare_launch", { draft_id: did });
+await call("prepare_launch", { draft_id: did });
 await call("launch_status", { draft_id: did });
 if (process.env.LAUNCH === "1") {
   const L: any = await call("confirm_launch", { draft_id: did, user_confirmed: true });

@@ -1,4 +1,4 @@
-import { generateText, tool, stepCountIs, jsonSchema } from "ai";
+import { generateText, tool, stepCountIs } from "ai";
 import { z } from "zod";
 import { randomBytes } from "crypto";
 import { sql } from "@/lib/db";
@@ -16,7 +16,7 @@ export type AgentResult = { reply: string; pending?: Pending; toolCalls: { name:
 
 const GATED = (name: ToolName, args: any) => name === "confirm_launch" || name === "claim_fees" || ((name === "withdraw" || name === "swap") && args?.confirm === true);
 const YES = /^\s*(y|yes|yeah|yep|yup|sure|ok|okay|confirm(ed)?|do it|go( ahead)?|launch( it)?|send( it)?|approve(d)?|let'?s go|ja|si|sí|oui|da)\b[\s.!]*/i;
-const argsHash = (name: string, args: any) => { const { confirm, user_confirmed, ...rest } = args ?? {}; return sha(name + JSON.stringify(rest, Object.keys(rest).sort())); };
+const argsHash = (name: string, args: any) => { const rest = { ...(args ?? {}) }; delete rest.confirm; delete rest.user_confirmed; return sha(name + JSON.stringify(rest, Object.keys(rest).sort())); };
 
 function summarize(name: ToolName, args: any) {
   if (name === "confirm_launch") return `Launch the coin from draft ${args.draft_id} (permanent).`;

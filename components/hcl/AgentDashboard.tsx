@@ -4,11 +4,12 @@ import { useEffect, useState } from "react";
 import Link from "next/link";
 import CopyBtn from "@/components/hg/CopyBtn";
 /** Agent control panel. Auth is the HttpOnly session cookie set by /login; the key never touches JS storage. */
-export default function AgentDashboard({ onState }: { onState?: (signedIn: boolean) => void }) {
+export default function AgentDashboard({ onState, hasCookie }: { onState?: (signedIn: boolean) => void; hasCookie?: boolean }) {
   const [d, setD] = useState<any>(null); const [pub, setPub] = useState<any>(null); const [msg, setMsg] = useState(""); const [form, setForm] = useState<any>({}); const [ready, setReady] = useState(false);
   const call = async (path: string, method = "GET", body?: any) => { const r = await fetch(path, { method, credentials: "same-origin", headers: { "content-type": "application/json" }, body: body ? JSON.stringify(body) : undefined }); const j = await r.json().catch(() => ({})); if (!r.ok) throw new Error(j.error ?? `HTTP ${r.status}`); return j; };
   const load = async () => { try { const j = await call("/api/agents/me"); setD(j); setForm((f: any) => ({ ...f, name: j.agent.name, bio: j.agent.bio ?? "", avatar_url: j.agent.avatar_url ?? "", banner_url: j.agent.banner_url ?? "", payout_address: j.agent.payout_address ?? "" })); setPub(await call(`/api/agents/${j.agent.handle}`)); onState?.(true); } catch { setD(null); onState?.(false); } setReady(true); };
-  useEffect(() => { load(); }, []); // eslint-disable-line react-hooks/exhaustive-deps
+  // no agent cookie → skip the /me call (avoids a 401 in the console for signed-out visitors)
+  useEffect(() => { if (hasCookie === false) { onState?.(false); setReady(true); return; } load(); }, []); // eslint-disable-line react-hooks/exhaustive-deps
   const run = async (fn: () => Promise<any>) => { setMsg(""); try { const m = await fn(); setMsg(typeof m === "string" ? m : "Saved ✓"); await load(); } catch (e: any) { setMsg(e.message); } };
   if (!ready) return null;
   if (!d) return null;

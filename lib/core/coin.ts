@@ -1,3 +1,4 @@
+import { poolInfo } from "@/lib/core/amm";
 import { PublicKey } from "@solana/web3.js";
 import { conn, online, readSharingConfig } from "@/lib/solana";
 import { bondingCurvePda } from "@/lib/solana/pump";
@@ -12,8 +13,13 @@ export async function coinInfo(mint: string) {
   } catch {}
   if (curve) curve.venue = "curve";
   if (curve?.complete) { // graduated: the live price is on the PumpSwap pool, the curve account is frozen
-    const p = await (await import("@/lib/core/amm")).poolInfo(mint).catch(() => null);
+    const p = await poolInfo(mint).catch(() => null);
     if (p) { curve.venue = "pumpswap"; curve.pool = p.pool; curve.priceQuote = p.priceQuote; curve.poolQuote = Number(p.quoteRaw); curve.progress = 100; }
+  }
+  if (curve?.priceQuote != null) { // exact devnet on-chain price × live SOL/USD (no scaling)
+    const { coinUsd } = await import("@/lib/core/price"); const quote = l?.pair_symbol === "USDC" ? "USDC" : "SOL";
+    const u = await coinUsd(mint, curve.priceQuote, { quote }).catch(() => null);
+    if (u) { curve.priceUsd = u.priceUsd; curve.mcapUsd = u.mcapUsd; curve.mcapQuote = curve.priceQuote * 1e9; curve.quote = quote; }
   }
   try { const s = await readSharingConfig(new PublicKey(mint)); if (s) sc = s.shareholders.map((x: any) => ({ address: x.address.toBase58(), bps: x.shareBps })); } catch {}
   const sigs = await conn().getSignaturesForAddress(bondingCurvePda(new PublicKey(mint)), { limit: 30 }).catch(() => []);

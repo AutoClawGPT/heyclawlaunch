@@ -168,5 +168,7 @@ export async function launchStatus(ctx: Ctx, id: string) {
   let t = `draft_id: ${d.id}\nstatus: ${d.status}\n${summary(d)}`;
   if (d.status === "failed" && d.error) t += `\nerror: ${d.error}`;
   if (l) t += `\nmint: ${l.mint}\ncreate tx: ${l.create_sig}\nfee split: ${l.split_status}${l.split_sig ? " " + l.split_sig : ""}\ntrade: https://pump.fun/coin/${l.mint}\npage: ${cfg.appUrl}/token/${l.mint}`;
+  if (l) { const ci: any = await (await import("@/lib/core/coin")).coinInfo(l.mint).catch(() => null); const c = ci?.curve;
+    if (c?.mcapQuote != null) { const { fmtUsd } = await import("@/lib/core/price"); t += `\nmarket cap: ${c.mcapUsd != null ? fmtUsd(c.mcapUsd) + " · " : ""}${c.mcapQuote.toFixed(2)} ${c.quote} (devnet on-chain ${c.venue === "pumpswap" ? "PumpSwap pool" : `curve, ${Number(c.progress).toFixed(1)}%`})`; } }
   return t;
 }

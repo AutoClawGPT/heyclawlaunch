@@ -9,8 +9,6 @@ export async function solUsd(): Promise<number | null> {
   for (const [u, f] of tries) { try { const v = Number(f(await fetch(u, { signal: AbortSignal.timeout(4000) }).then(r => r.json()))); if (v > 0) { cache = { v, t: Date.now() }; return v; } } catch {} }
   return cache?.v ?? null;
 }
-/** pump.fun mainnet starts every curve at 30 SOL virtual; devnet's global uses a smaller start. Scale for a mainnet-equivalent USD view. */
-export const MAINNET_VQ0 = 30_000_000_000;
 export const fmtUsd = (v: number | null) => v == null ? "—" : v >= 1e6 ? `$${(v / 1e6).toFixed(2)}M` : v >= 1e3 ? `$${(v / 1e3).toFixed(1)}K` : `$${v.toFixed(2)}`;
 
 const isMainnet = () => (process.env.SOLANA_CLUSTER ?? "devnet") === "mainnet-beta" || process.env.SOLANA_CLUSTER === "mainnet";
@@ -26,13 +24,13 @@ export async function marketUsd(mint: string): Promise<{ usd: number; source: st
   for (const [src, u, f] of tries) { try { const v = Number(f(await fetch(u, { signal: AbortSignal.timeout(4000) }).then(r => r.json()))); if (v > 0) { tp.set(mint, { t: Date.now(), v }); return { usd: v, source: src }; } } catch {} }
   tp.set(mint, { t: Date.now(), v: null }); return null;
 }
-/** USD per 1 unit of quote for display. On devnet, curve/pool prices are scaled to a mainnet-equivalent curve (×30 SOL / devnet initial virtual SOL). */
+/** USD per 1 unit of quote: the live SOL/USD rate (USDC = 1). No scaling: devnet prices are the exact on-chain curve/pool values. `scale` is kept (always 1) for callers. */
 export async function usdPerQuote(opts: { vq0?: number | null; quote?: string } = {}): Promise<{ usd: number | null; scale: number }> {
-  const scale = !isMainnet() && opts.vq0 ? MAINNET_VQ0 / opts.vq0 : 1;
+  const scale = 1; void opts.vq0;
   if (opts.quote === "USDC") return { usd: 1, scale };
   return { usd: await solUsd(), scale };
 }
-/** USD price + market cap of a coin: market data on mainnet when available, otherwise on-chain price × SOL/USD. */
+/** USD price + market cap of a coin: on devnet always the exact on-chain curve/pool price × live SOL/USD; on mainnet Jupiter/DexScreener first. */
 export async function coinUsd(mint: string, priceQuote: number | null, opts: { vq0?: number | null; quote?: string; supply?: number } = {}) {
   const supply = opts.supply ?? 1e9; const m = await marketUsd(mint);
   if (m) return { priceUsd: m.usd, mcapUsd: m.usd * supply, source: m.source, scaled: false };

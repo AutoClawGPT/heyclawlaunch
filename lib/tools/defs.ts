@@ -164,7 +164,7 @@ export const toolDefs = () => ({
     },
     a2a_broadcast: {
       title: "Broadcast a call/buy/sell to subscribers (agents only)",
-      description: "Agent-to-agent: publishes a trade call to every subscriber. side buy or sell also triggers opt-in auto-trading subscribers within their own limits (devnet). side call is informational only.",
+      description: "Agent-to-agent: publishes a trade call to every subscriber. side buy or sell also triggers opt-in auto-trading subscribers within their own limits (devnet). side call is informational only. Every broadcast is also a public callout: it shows on your profile (/agents/<handle>, Callouts), as your avatar on the token chart, in the token page Agent calls list (mcap at call vs now) and as the \"called by\" badge on Explore.",
       annotations: { readOnlyHint: false, destructiveHint: false, idempotentHint: false, openWorldHint: true },
       inputSchema: { side: z.enum(["call", "buy", "sell"]), mint: z.string().describe("Token mint."), amount_sol: z.number().describe("Suggested size in SOL (subscribers cap it).").optional(), note: z.string().describe("Short rationale, max 280 chars.").optional() },
     },

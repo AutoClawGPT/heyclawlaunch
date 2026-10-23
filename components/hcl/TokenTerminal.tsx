@@ -9,7 +9,8 @@ import SafeImg from "@/components/hg/SafeImg";
 import { ago, sol } from "./ui";
 import CallMarkers, { type CallMark } from "./CallMarkers";
 import { priceSub, usdCompact, numCompact, pct, shortAddr, agoS } from "@/lib/fmt";
-export type TokenProps = { mint: string; snapAt?: number; name: string; ticker: string; logo: string | null; pair: string; supply: number; priceQuote: number | null; usdPerQuote: number | null;
+import { MAINNET_EQUIV_FACTOR } from "@/lib/mainnet-equiv";
+export type TokenProps = { mint: string; snapAt?: number; name: string; ticker: string; logo: string | null; pair: string; supply: number; priceQuote: number | null; usdPerQuote: number | null; usdScaled?: boolean;
   complete: boolean; progress: number; liqQuote: number; holders: number | null; pool?: string | null; creator?: string | null; launchedAt?: string | null;
   description?: string | null; x?: string | null; website?: string | null; telegram?: string | null; shares?: { address: string; bps: number }[]; feeTo: string; curve?: string | null; createSig?: string | null };
 const IVS = ["1m", "5m", "15m", "1h", "4h", "1d"];
@@ -35,7 +36,7 @@ export default function TokenTerminal(p: TokenProps) {
   const priceUsd = pq != null && usd ? pq * usd : null; const mcapUsd = priceUsd != null ? priceUsd * p.supply : null;
   const athUsd = ts?.ath && usd ? Math.max(ts.ath * usd * p.supply, mcapUsd ?? 0) : mcapUsd;
   const w24 = ts?.windows?.["24h"]; const chg24 = w24?.open && pq ? ((pq - w24.open) / w24.open) * 100 : ts ? 0 : null;
-  const v24 = (w24?.buy_vol ?? 0) + (w24?.sell_vol ?? 0); const liqUsd = usd ? p.liqQuote * usd : null;
+  const v24 = (w24?.buy_vol ?? 0) + (w24?.sell_vol ?? 0); const usdReal = usd != null ? usd / ((d?.scaled ?? p.usdScaled ?? true) ? MAINNET_EQUIV_FACTOR : 1) : null; /* real SOL/USD for SOL amounts (trade input, liquidity, volume); `usd` is mainnet-equivalent (devnet curve ×100) */ const liqUsd = usdReal ? p.liqQuote * usdReal : null;
   const [tab, setTab] = useState<"trades" | "holders" | "comments">("comments");
   const socials = [p.x && ["X", p.x.startsWith("http") ? p.x : `https://x.com/${p.x.replace(/^@/, "")}`], p.website && ["Web", p.website], p.telegram && ["TG", p.telegram.startsWith("http") ? p.telegram : `https://t.me/${p.telegram.replace(/^@/, "")}`]].filter(Boolean) as [string, string][];
   return <div className="grid gap-3 lg:grid-cols-[minmax(0,1fr)_350px]">
@@ -55,7 +56,7 @@ export default function TokenTerminal(p: TokenProps) {
       {/* B. chart */}
       <Chart d={d} iv={iv} setIv={setIv} ccy={ccy} setCcy={setCcy} mode={mode} setMode={setMode} supply={p.supply} q={q} ticker={p.ticker} priceUsd={priceUsd} chg={chg24} calls={ts?.calls} />
       {/* mobile: trade + stats right under the chart */}
-      <div className="flex flex-col gap-3 lg:hidden"><TradePanel {...p} usd={usd} /><Stats ts={ts} usd={usd} price={pq} /><Curve {...p} liqUsd={liqUsd} mcapUsd={mcapUsd} /></div>
+      <div className="flex flex-col gap-3 lg:hidden"><TradePanel {...p} usd={usdReal} /><Stats ts={ts} usd={usdReal} price={pq} /><Curve {...p} liqUsd={liqUsd} mcapUsd={mcapUsd} /></div>
       <LiveTrades d={raw} />
       <Calls list={ts?.calls} usd={usd} supply={p.supply} price={pq} />
       {/* G. tabs */}
@@ -64,7 +65,7 @@ export default function TokenTerminal(p: TokenProps) {
         {tab === "trades" ? <Trades d={d} usd={usd} q={q} ticker={p.ticker} /> : tab === "holders" ? <Holders mint={p.mint} creator={p.creator} priceUsd={priceUsd} /> : <Comments list={ts?.comments} ticker={p.ticker} />}
       </section>
     </div>
-    <aside className="hidden flex-col gap-3 lg:flex"><TradePanel {...p} usd={usd} /><Stats ts={ts} usd={usd} price={pq} /><Curve {...p} liqUsd={liqUsd} mcapUsd={mcapUsd} /><Info {...p} /></aside>
+    <aside className="hidden flex-col gap-3 lg:flex"><TradePanel {...p} usd={usdReal} /><Stats ts={ts} usd={usdReal} price={pq} /><Curve {...p} liqUsd={liqUsd} mcapUsd={mcapUsd} /><Info {...p} /></aside>
     <div className="lg:hidden"><Info {...p} /></div>
   </div>;
 }

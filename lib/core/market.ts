@@ -23,7 +23,7 @@ export async function listCoins(opts: { limit?: number; sort?: string; fee?: str
   const { solUsd, usdPerQuote } = await import("@/lib/core/price");
   const vq0 = await online().fetchGlobal().then((gl: any) => Number(gl.initialVirtualQuoteReserves?.toString() ?? 0) || null).catch(() => null);
   const [sol, solScale] = await Promise.all([solUsd(), usdPerQuote({ vq0 }).then(x => x.scale)]);
-  let list: Coin[] = rows.map(r => { const c = cv.get(r.mint); const mq = c?.mcapQuote ?? null; const per = r.pair === "SOL" ? (sol != null ? sol * solScale : null) : r.pair === "USDC" ? 1 : null; return { ...r, progress: c?.progress ?? 0, complete: !!c?.complete, mcapQuote: mq, raisedQuote: c?.raised ?? 0, mcapUsd: mq != null && per != null ? mq * per : null }; });
+  let list: Coin[] = rows.map(r => { const c = cv.get(r.mint); const mq = c?.mcapQuote ?? null; const per = r.pair === "SOL" ? (sol != null ? sol * solScale : null) : r.pair === "USDC" ? solScale : null; return { ...r, progress: c?.progress ?? 0, complete: !!c?.complete, mcapQuote: mq, raisedQuote: c?.raised ?? 0, mcapUsd: mq != null && per != null ? mq * per : null }; });
   const { fee, pair, q, sort } = opts;
   if (fee) list = list.filter(r => fee === "holders" ? r.is_holder_reward : fee === "x" ? !!r.fee_label?.startsWith("@") : !r.is_holder_reward && !r.fee_label?.startsWith("@"));
   if (pair) list = list.filter(r => r.pair === pair);

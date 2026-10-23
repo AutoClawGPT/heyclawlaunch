@@ -1,3 +1,5 @@
+import { MAINNET_EQUIV_FACTOR } from "@/lib/mainnet-equiv";
+export { MAINNET_EQUIV_FACTOR } from "@/lib/mainnet-equiv";
 // SOL/USD for display (mainnet price via Jupiter, CoinGecko fallback), cached 60 s.
 let cache: { v: number; t: number } | null = null;
 export async function solUsd(): Promise<number | null> {
@@ -24,9 +26,9 @@ export async function marketUsd(mint: string): Promise<{ usd: number; source: st
   for (const [src, u, f] of tries) { try { const v = Number(f(await fetch(u, { signal: AbortSignal.timeout(4000) }).then(r => r.json()))); if (v > 0) { tp.set(mint, { t: Date.now(), v }); return { usd: v, source: src }; } } catch {} }
   tp.set(mint, { t: Date.now(), v: null }); return null;
 }
-/** USD per 1 unit of quote: the live SOL/USD rate (USDC = 1). No scaling: devnet prices are the exact on-chain curve/pool values. `scale` is kept (always 1) for callers. */
+/** USD per 1 unit of quote: the live SOL/USD rate (USDC = 1). On devnet `scale` = MAINNET_EQUIV_FACTOR (100): devnet curves start at 0.3 SOL virtual reserves vs mainnet's 30 SOL, so USD prices/market caps are shown mainnet-equivalent (curve ×100). Mainnet: scale 1. */
 export async function usdPerQuote(opts: { vq0?: number | null; quote?: string } = {}): Promise<{ usd: number | null; scale: number }> {
-  const scale = 1; void opts.vq0;
+  const scale = isMainnet() ? 1 : MAINNET_EQUIV_FACTOR; void opts.vq0;
   if (opts.quote === "USDC") return { usd: 1, scale };
   return { usd: await solUsd(), scale };
 }

@@ -13,7 +13,7 @@ Sources: chat Oct 18 (23 messages, ~55 distinct asks), PROGRESS.md, AUDIT.md, Oc
 - [x] No demo coins/users anywhere — done (test data purged Oct 18 + Oct 23; ClawTester is the one permanent, real test agent)
 - [x] Images on the site never broken — done (IPFS proxy races gateways; broken avatar → generated fallback) · fixed now: agent avatar/banner on ipfs.io 429 were silently dropped at register (`lib/core/agents.ts`, commit c5529e9)
 - [x] Login tab (API key or wallet), settings page to control the agent — done (/login, /agents/dashboard; cookie HttpOnly/Secure/Strict PASS Oct 23)
-- [x] Mobile side tab listing every tab, show/hide without glitches — done (Oct 23 07:xx sweep: 16 links, open x=0 / closed x=-224, scrim + Esc close; /workspace/shots/oct23/sidebar-*.png)
+- [x] Mobile side tab listing every tab, show/hide without glitches — done (Oct 23 07:05 sweep: 16 links, open x=0 / closed x=-224, scrim + Esc close; /workspace/shots/oct23/sidebar-*.png)
 - [x] Compress/perf, remove "slides" look — done (home JS 191 → 171 KB gz, ISR, CDN caching; PROGRESS 05:20)
 - [x] Use skills/tools first, fast site, no errors — done (lint 0 errors, tsc clean, build clean before each push)
 - [x] X/Twitter share card (OG image) for the site link — done (all OG 200 PNG, AUDIT Oct 23) · /community/[id] per-post image: fixed now (agent avatar fell back to initials when our IPFS proxy was slower than the 2.5 s probe; d93fd81)

@@ -16,7 +16,7 @@ stop() { local p="${PID[$1]:-}"; [ -n "$p" ] || return 0; kill -TERM -- "-$p" 2>
 deps() { if [ ! -d node_modules ] || [ pnpm-lock.yaml -nt node_modules/.modules.yaml ]; then log "installing deps"; pnpm install --frozen-lockfile >/tmp/hcl-install.log 2>&1 || log "pnpm install failed (see /tmp/hcl-install.log)"; fi; }
 trap 'log "supervisor stopping"; stop worker; stop bot; exit 0' INT TERM
 deps; start worker; start bot
-while sleep "$EVERY"; do
+while sleep "$EVERY" & wait $!; do
   if git fetch -q "$REPO" "$BRANCH" 2>/dev/null && [ "$(git rev-parse FETCH_HEAD)" != "$(git rev-parse HEAD)" ]; then
     log "new commit $(git rev-parse --short FETCH_HEAD) — updating"
     git reset -q --hard FETCH_HEAD; deps

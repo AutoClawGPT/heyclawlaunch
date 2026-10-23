@@ -36,12 +36,12 @@ Sources: chat Oct 18 (23 messages, ~55 distinct asks), PROGRESS.md, AUDIT.md, Oc
 - [x] Users pay from any wallet (Solana Pay reference) or their HCL wallet, bot starts, real trades, stop/resume — done (bots E2E 12/12 Oct 23)
 - [x] Copy the dexlift_bot flow / dexliftdeployer dashboard on our own setup (devnet SOL only) — done (bots dashboard + Telegram /volume /mybots /botpay)
 - [ ] Bots run reliably off the box (worker + Telegram bot outlive restarts) — partly done: box supervisor + .bashrc autostart (PROGRESS 05:20); daily Vercel cron also runs one bot pass. A real always-on host (Railway/Fly/VPS) needs user.
-- [x] Bots work on graduated coins — fixed now: PumpSwap routing (`lib/core/amm.ts`, 265d5e0); live devnet buy+sell on GRIN1 pool PASS
+- [x] Bots work on graduated coins (local follow-up fix pending push: `globalThis.__pool` name clash between PumpSwap cache and Postgres pool) — fixed now: PumpSwap routing (`lib/core/amm.ts`, 265d5e0); live devnet buy+sell on GRIN1 pool PASS
 - [ ] Real orders as ClawTester for every bot kind/tier affordable on devnet, via site, MCP, Telegram — open (devnet faucet dry; see budget note at the bottom)
 
 ## Prices & charts
-- [x] Real pump.fun data on token pages, not "0.28 SOL" — done Oct 18 (USD mcap at mainnet scale)
-- [x] USD everywhere, real time, from Jupiter / DexScreener / Helius / pump.fun — fixed now: `coinUsd()` (Jupiter v3 → DexScreener on mainnet, on-chain curve/pool × SOL/USD on devnet via Helius RPC), lists + marquee + token page + chart (c5529e9, 68b7b00, a98f53e)
+- [x] Real pump.fun data on token pages, not "0.28 SOL" — done Oct 18; Oct 23 correction: "mainnet scale" removed (local, pending push)
+- [ ] USD everywhere — open (local fix, not pushed): devnet = EXACT on-chain curve/PumpSwap-pool price × live SOL/USD, no scaling; Jupiter/DexScreener token prices only on mainnet; also added to Telegram /token and MCP launch_status. Earlier version: `coinUsd()` (Jupiter v3 → DexScreener on mainnet, on-chain curve/pool × SOL/USD on devnet via Helius RPC), lists + marquee + token page + chart (c5529e9, 68b7b00, a98f53e)
 - [x] Real OHLC charts from real trades, live updating — done (3 s poll) · fixed now: USD/quote toggle, and PumpSwap trades indexed after graduation (68b7b00)
 - [x] Graduated token pages: mcap was empty, Boost hidden, swap refused — fixed now (pool price/mcap, "Graduated · PumpSwap", Boost kept, swap via PumpSwap)
 

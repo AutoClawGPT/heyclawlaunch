@@ -75,6 +75,15 @@ report("12b-my_wallet", !!custodial, `custodial ${custodial} for SIWS user ${use
 
 // --- 4. full launch through MCP (fees to the custodial wallet) ---
 const call = async (name: string, args: any) => { const r: any = await wc.callTool({ name, arguments: args }); return { t: text(r), e: !!r.isError, s: r.structuredContent }; };
+if (process.env.SWAP_MINT) { // swap-only retest on an existing coin (curve or PumpSwap); costs ~0.03 SOL
+  const m = process.env.SWAP_MINT; const lw = launchWallet();
+  await sendV0([SystemProgram.transfer({ fromPubkey: lw.publicKey, toPubkey: new PublicKey(custodial), lamports: 0.03 * LAMPORTS_PER_SOL })], [lw]);
+  const p1 = await call("swap", { from: "SOL", to: m, amount: "0.01" }); const c1 = await call("swap", { from: "SOL", to: m, amount: "0.01", confirm: true });
+  await call("swap", { from: m, to: "SOL", amount: "all" }); const c2 = await call("swap", { from: m, to: "SOL", amount: "all", confirm: true });
+  report("10-swap-only", p1.t.startsWith("PREVIEW") && c1.t.startsWith("Swapped") && c2.t.startsWith("Swapped"), `buy: ${c1.t.split("\n")[0]} ${c1.t.match(/https:\S+/)?.[0]} | sell: ${c2.t.split("\n")[0]} ${c2.t.match(/https:\S+/)?.[0]}`);
+  const back = await call("withdraw", { to: lw.publicKey.toBase58(), amount: "all" }); if (back.t.startsWith("PREVIEW")) await call("withdraw", { to: lw.publicKey.toBase58(), amount: "all", confirm: true });
+  await wc.close(); process.exit(0);
+}
 let r = await call("prepare_launch", { start_new: true }); const draft = r.s.draft_id;
 const order: string[] = [r.t.match(/NEXT QUESTION: ([^\n]+)/)![1]];
 for (const a of [{ name: "MCP E2E Cat" }, { ticker: "mcpcat" }, { logo_url: "ipfs://bafkreidlp6sdj6jkroakvmbntpy2clsj77foijheae5byt3iwz7d2k542a" }, { fee_mode: "wallet", fee_wallet: custodial }, { pair: "SOL" }, { description: "nothing" }, { skip_socials: true }]) {

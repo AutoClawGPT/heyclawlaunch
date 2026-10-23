@@ -20,6 +20,8 @@ export async function indexTradesOnce(maxCoins = 40) {
   // coins with a running bot are indexed every pass so their charts stay live
   const hot = await sql`select distinct o.mint, l.owner_key, c.last_sig from bot_orders o join launches l on l.mint=o.mint left join index_cursor c on c.mint=o.mint where o.status in ('queued','running') or o.updated_at > now() - interval '5 minutes'`;
   for (const h of hot) if (!coins.some((x: any) => x.mint === h.mint)) coins.push(h);
+  const { curveStates } = await import("@/lib/core/market"); const cst = await curveStates(coins.map((c: any) => c.mint)).catch(() => new Map());
+  const grad = new Set([...cst.entries()].filter(([, v]: any) => v?.complete).map(([m]: any) => m as string));
   let n = 0;
   for (const c of coins) {
     const curve = bondingCurvePda(new PublicKey(c.mint));
@@ -48,9 +50,35 @@ export async function indexTradesOnce(maxCoins = 40) {
     }
     const top = sigs[0]?.signature ?? c.last_sig;
     await sql`insert into index_cursor(mint,last_sig,updated_at) values(${c.mint},${top},now()) on conflict(mint) do update set last_sig=excluded.last_sig, updated_at=now()`;
+    if (grad.has(c.mint)) n += await indexPoolOnce(c.mint, c.owner_key).catch(() => 0);
   }
   return n;
 }
+
+/** Graduated coins trade on their PumpSwap pool: record swaps (pool base/quote vault deltas) so charts, volume and the leaderboard continue after migration. */
+async function indexPoolOnce(mint: string, ownerKey: string) {
+  const { poolKeyOf } = await import("@/lib/core/amm"); const pool = poolKeyOf(mint); const pk = pool.toBase58(); const ck = `amm:${mint}`;
+  const [cur] = await sql`select last_sig from index_cursor where mint=${ck}`;
+  const sigs = await conn().getSignaturesForAddress(pool, { until: cur?.last_sig ?? undefined, limit: 50 }).catch(() => []);
+  let n = 0;
+  for (const s of sigs.filter(x => !x.err).reverse()) {
+    const tx = await conn().getTransaction(s.signature, { maxSupportedTransactionVersion: 0 }).catch(() => null); if (!tx?.meta) continue;
+    const bal = (arr: any[] | null | undefined, m: string) => Number(arr?.find(b => b.mint === m && b.owner === pk)?.uiTokenAmount?.uiAmount ?? 0);
+    const dq = bal(tx.meta.postTokenBalances, WSOL) - bal(tx.meta.preTokenBalances, WSOL), db = bal(tx.meta.postTokenBalances, mint) - bal(tx.meta.preTokenBalances, mint);
+    if (!dq || !db || Math.sign(dq) === Math.sign(db)) continue; // deposits/withdrawals move both the same way
+    const side = dq > 0 ? "buy" : "sell", lam = BigInt(Math.round(Math.abs(dq) * 1e9)), tokens = Math.abs(db), price = Math.abs(dq) / tokens;
+    const keys = tx.transaction.message.getAccountKeys({ accountKeysFromLookups: tx.meta.loadedAddresses });
+    const when = new Date((s.blockTime ?? Date.now() / 1000) * 1000);
+    const ins = await sql`insert into curve_trades(sig,mint,owner_key,side,lamports,trader,ts,tokens,price) values(${s.signature},${mint},${ownerKey},${side},${lam.toString()},${keys.get(0)!.toBase58()},${when},${tokens},${price}) on conflict do nothing returning sig`;
+    if (!ins.length) continue;
+    const sol = Number(lam) / 1e9; const r = redis(); const p = r.pipeline();
+    p.zincrby(zkey("all"), sol, ownerKey); p.zincrby(zkey("daily", dayKey(when)), sol, ownerKey); p.zincrby(zkey("weekly", weekKey(when)), sol, ownerKey);
+    p.lpush(`${NS}:feed`, JSON.stringify({ sig: s.signature, mint, side, sol, price, ts: +when })); p.ltrim(`${NS}:feed`, 0, 99); await p.exec(); n++;
+  }
+  if (sigs[0]) await sql`insert into index_cursor(mint,last_sig,updated_at) values(${ck},${sigs[0].signature},now()) on conflict(mint) do update set last_sig=excluded.last_sig, updated_at=now()`;
+  return n;
+}
+const WSOL = "So11111111111111111111111111111111111111112";
 
 export async function label(ownerKey: string) {
   if (ownerKey.startsWith("x:")) { const [h] = await sql`select handle from x_handles where x_user_id=${ownerKey.slice(2)} limit 1`; return h ? `@${h.handle}` : `X user ${ownerKey.slice(-4)}`; }

@@ -1,3 +1,4 @@
+import { limitIp } from "@/lib/ratelimit";
 import { randomBytes } from "crypto";
 import { cookies } from "next/headers";
 import { webCtx } from "@/lib/core/web-ctx";
@@ -9,7 +10,7 @@ import { getOrCreateCustodial } from "@/lib/keystore";
 import { createPending } from "@/lib/brain/agent";
 export const runtime = "nodejs"; export const dynamic = "force-dynamic"; export const maxDuration = 180;
 /** Web buttons: upload / generate / regenerate logo, and "generate everything". All only fill the draft; launching still needs the user's confirm. */
-export async function POST(req: Request) {
+export async function POST(req: Request) { { const busy = await limitIp(req, "gen", 20, 60); if (busy) return busy; }
   const jar = await cookies();
   if (!jar.get("hg_anon")) jar.set("hg_anon", randomBytes(16).toString("hex"), { httpOnly: true, sameSite: "lax", path: "/", maxAge: 86400 * 30 });
   const ctx = await webCtx();

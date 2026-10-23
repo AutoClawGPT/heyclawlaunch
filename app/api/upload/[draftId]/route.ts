@@ -1,9 +1,10 @@
+import { limitIp } from "@/lib/ratelimit";
 import { checkUploadToken } from "@/lib/core/drafts";
 import { pinLogoBytes } from "@/lib/core/logo";
 import { UserError } from "@/lib/core/validate";
 import { sql } from "@/lib/db";
 export const runtime = "nodejs";
-export async function POST(req: Request, { params }: { params: Promise<{ draftId: string }> }) {
+export async function POST(req: Request, { params }: { params: Promise<{ draftId: string }> }) { { const busy = await limitIp(req, "upload", 20, 60); if (busy) return busy; }
   const { draftId } = await params; const t = new URL(req.url).searchParams.get("t") ?? "";
   try {
     const d = await checkUploadToken(draftId, t);

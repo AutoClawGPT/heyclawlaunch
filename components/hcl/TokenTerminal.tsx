@@ -56,7 +56,7 @@ export default function TokenTerminal(p: TokenProps) {
       {/* B. chart */}
       <Chart d={d} iv={iv} setIv={setIv} ccy={ccy} setCcy={setCcy} mode={mode} setMode={setMode} supply={p.supply} q={q} ticker={p.ticker} priceUsd={priceUsd} pq={pq} chg={chg24} calls={ts?.calls} />
       {/* mobile: trade + stats right under the chart */}
-      <div className="flex flex-col gap-3 lg:hidden"><TradePanel {...p} usd={usdReal} /><Stats ts={ts} usd={usdReal} price={pq} /><Curve {...p} liqUsd={liqUsd} mcapUsd={mcapUsd} /></div>
+      <div className="flex flex-col gap-3 lg:hidden"><TradePanel {...p} usd={usdReal} /><Stats ts={ts} usd={usd} price={pq} /><Curve {...p} liqUsd={liqUsd} mcapUsd={mcapUsd} /></div>
       <LiveTrades d={raw} />
       <Calls list={ts?.calls} usd={usd} supply={p.supply} price={pq} />
       {/* G. tabs */}
@@ -65,7 +65,7 @@ export default function TokenTerminal(p: TokenProps) {
         {tab === "trades" ? <Trades d={d} usd={usd} q={q} ticker={p.ticker} /> : tab === "holders" ? <Holders mint={p.mint} creator={p.creator} priceUsd={priceUsd} /> : <Comments list={ts?.comments} ticker={p.ticker} />}
       </section>
     </div>
-    <aside className="hidden flex-col gap-3 lg:flex"><TradePanel {...p} usd={usdReal} /><Stats ts={ts} usd={usdReal} price={pq} /><Curve {...p} liqUsd={liqUsd} mcapUsd={mcapUsd} /><Info {...p} /></aside>
+    <aside className="hidden flex-col gap-3 lg:flex"><TradePanel {...p} usd={usdReal} /><Stats ts={ts} usd={usd} price={pq} /><Curve {...p} liqUsd={liqUsd} mcapUsd={mcapUsd} /><Info {...p} /></aside>
     <div className="lg:hidden"><Info {...p} /></div>
   </div>;
 }

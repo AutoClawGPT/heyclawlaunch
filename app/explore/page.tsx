@@ -3,7 +3,7 @@ import { listCoins } from "@/lib/core/market";
 import { sql } from "@/lib/db";
 import CoinCards from "@/components/hg/CoinCards";
 import { coinStats } from "@/lib/core/coinstats";
-import { solUsd } from "@/lib/core/price";
+import { solUsd, usdPerQuote } from "@/lib/core/price";
 import { ogMeta } from "@/lib/og";
 export const metadata = ogMeta("Explore coins", "Every pump.fun coin launched on HeyClawLaunch: live prices, volume and trades.", "type=home");
 export const dynamic = "force-dynamic";
@@ -12,7 +12,7 @@ const on = "border px-2.5 py-1 transition-colors border-[var(--accent)] text-[va
 export default async function Explore({ searchParams }: { searchParams: Promise<SP> }) {
   const sp = await searchParams;
   const coins = await listCoins({ ...sp, sort: sp.sort === "new" ? "new" : sp.sort });
-  const [st, usd] = await Promise.all([coinStats(coins.map(c => c.mint)), solUsd()]);
+  const [st, sol, { scale }] = await Promise.all([coinStats(coins.map(c => c.mint)), solUsd(), usdPerQuote({})]); const usd = sol != null ? sol * scale : null; /* mainnet-equivalent USD for volume, like the token page */
   const pairs: string[] = (await sql`select distinct symbol from pairs order by symbol`.catch(() => [])).map((r: any) => r.symbol).filter(Boolean);
   const href = (o: Partial<SP>) => { const q = new URLSearchParams(Object.entries({ ...sp, ...o }).filter(([, v]) => v) as [string, string][]); const s = q.toString(); return s ? `/explore?${s}` : "/explore"; };
   const sorts: [string | undefined, string][] = [[undefined, "trending"], ["mcap", "market cap"], ["new", "newest"], ["graduating", "near graduation"]];

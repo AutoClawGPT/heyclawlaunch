@@ -1,15 +1,11 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
-import LiveChart from "@/components/hcl/LiveChart";
+import TokenTerminal from "@/components/hcl/TokenTerminal";
 import { coinInfo, holderCount } from "@/lib/core/coin";
-import { coinUsd, fmtUsd } from "@/lib/core/price";
-import { volumeStats } from "@/lib/core/leaderboard";
-import { cfg, solscanTx, clusterQs } from "@/lib/config";
+import { coinUsd } from "@/lib/core/price";
+import { clusterQs } from "@/lib/config";
 import { bondingCurvePda } from "@/lib/solana/pump";
 import { PublicKey } from "@solana/web3.js";
-import { short, ago } from "@/lib/core/market";
-import { CoinImg } from "@/components/hg/CoinTable";
-import CopyBtn from "@/components/hg/CopyBtn";
 export const revalidate = 10; // ISR: the chart/feed refresh client-side
 export async function generateStaticParams() { return []; } // on-demand ISR per mint
 import { ogMeta } from "@/lib/og";
@@ -18,36 +14,21 @@ export async function generateMetadata({ params }: { params: Promise<{ mint: str
   const { mint } = await params; const [l] = await sql`select l.name,l.ticker,d.description from launches l left join drafts d on d.id=l.draft_id where l.mint=${mint}`.catch(() => []);
   return l ? ogMeta(`${l.name} ($${l.ticker})`, (l.description || `$${l.ticker} on pump.fun, launched with HeyClawLaunch.`).slice(0, 180), `type=token&mint=${mint}`) : {};
 }
-const acct = (a: string) => `https://solscan.io/account/${a}${clusterQs()}`;
-function Row({ k, v, href, copy }: { k: string; v: string; href?: string; copy?: string }) {
-  return <div className="flex items-center justify-between gap-3 py-2.5 text-sm"><span className="text-[var(--fg-2)]">{k}</span><span className="flex items-center gap-2">{href ? <a href={href} target="_blank" rel="noreferrer" className="mono text-[var(--accent)] hover:underline">{v}</a> : <span className="mono">{v}</span>}{copy && <CopyBtn v={copy} />}</span></div>;
-}
 export default async function Token({ params }: { params: Promise<{ mint: string }> }) {
   const { mint } = await params; if (!/^[1-9A-HJ-NP-Za-km-z]{32,44}$/.test(mint)) notFound(); const i = await coinInfo(mint); const l = i.launch; const cv = i.curve; if (!l) notFound();
   let curvePk = ""; try { curvePk = bondingCurvePda(new PublicKey(mint)).toBase58(); } catch {}
   const pair = l?.pair_symbol ?? "SOL"; const holders = !!l?.is_holder_reward; const xFee = !!l?.fee_label?.startsWith("@");
-  const mcap = cv ? cv.priceQuote * (cv.supply ?? 1e9) : null; const prog = cv?.progress ?? 0;
-  const [px, hc, vs] = await Promise.all([coinUsd(mint, cv?.priceQuote ?? null, { vq0: cv?.vq0, quote: pair, supply: cv?.supply ?? 1e9 }), holderCount(mint), volumeStats(mint).catch(() => null)]);
-  const mcapUsd = mcap != null ? px.mcapUsd : null; const priceUsd = cv ? px.priceUsd : null;
-  const v24 = Number((vs as any)?.v24 ?? 0);
-  const pump = `https://pump.fun/coin/${mint}`;
+  const prog = cv?.progress ?? 0;
+  const [px, hc] = await Promise.all([coinUsd(mint, cv?.priceQuote ?? null, { vq0: cv?.vq0, quote: pair, supply: cv?.supply ?? 1e9 }), holderCount(mint)] as const);
+  const priceUsd = cv ? px.priceUsd : null;
+    const pump = `https://pump.fun/coin/${mint}`;
+  const [dr] = l.draft_id ? await sql`select description, x, website, telegram from drafts where id=${l.draft_id}`.catch(() => [] as any[]) : [];
+  const liqQuote = cv ? (cv.venue === "pumpswap" ? (cv.poolQuote ?? 0) : (cv.realQuote ?? 0)) / 1e9 : 0;
+  const usdPerQuote = priceUsd != null && cv?.priceQuote ? priceUsd / cv.priceQuote : null;
   return (
-    <main className="wrap py-8 sm:py-12"><Link className="mono text-[12px] text-[var(--muted)] hover:text-[var(--accent)]" href="/explore">← explore</Link>
-      <div className="mt-5 flex flex-col gap-4 sm:flex-row sm:items-center"><div className="flex min-w-0 flex-1 items-center gap-4"><CoinImg cid={l?.logo_cid ?? null} size={64} /><div className="min-w-0 flex-1"><div className="flex flex-wrap items-baseline gap-x-3 gap-y-1"><h1 className="text-3xl font-bold tracking-[-0.03em] sm:text-4xl">{l?.name ?? "Unknown coin"}</h1><span className="mono text-[var(--muted)]">{l ? `$${l.ticker}` : short(mint)}</span></div>
-        <div className="mt-2 flex flex-wrap items-center gap-1.5"><span className="tag tag-strong">{pair} pair</span><span className="tag ">Fees → {holders ? "holders" : xFee ? l.fee_label.split(" ")[0] : "wallet"}</span>{!holders && l && <span className="tag ">80 / 20 split</span>}<span className="tag ">{cv?.complete ? (cv?.venue === "pumpswap" ? "Graduated · PumpSwap" : "Graduated") : "On the curve"}</span><span className="tag ">No dev buy</span><span className="tag ">{cfg.cluster}</span></div></div></div>
-        <div className="flex w-full gap-2 sm:w-auto"><a href={`https://solscan.io/token/${mint}${clusterQs()}`} target="_blank" rel="noreferrer" className="btn-ghost btn-big mono flex-1 !px-3 !font-medium sm:flex-none sm:!px-[26px]">Solscan ↗</a>{l && <Link href={`/bots?mint=${mint}`} className="btn-accent btn-big flex-1 !px-3 sm:flex-none sm:!px-[22px]">Boost</Link>}<a href={pump} target="_blank" rel="noreferrer" className="btn-primary btn-big group flex-1 !px-3 sm:flex-none sm:!px-[26px]">Trade on pump.fun<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.4" strokeLinecap="square" strokeLinejoin="round" aria-hidden="true" className="transition-transform group-hover:-translate-y-0.5 group-hover:translate-x-0.5"><path d="M6 18 17 7M8 6h10v10"></path></svg></a></div></div>
-      <div className="mt-8 grid gap-3 lg:grid-cols-[1fr_340px]"><div className="flex min-w-0 flex-col gap-3">
-        <div className="card spot p-5 sm:p-6"><div className="flex flex-wrap items-end justify-between gap-4"><div><div className="eyebrow">Market cap</div><div className="mono mt-1 flex items-baseline gap-3"><span className="text-4xl font-semibold tabular-nums">{fmtUsd(mcapUsd)}</span><span className="tag tabular-nums tag-up ">{prog.toFixed(1)}% curve</span></div><div className="mono mt-1 text-xs text-[var(--muted)]">{cv ? `${fmtUsd(priceUsd).replace(/^\$0\.00$/, "<$0.01")} · ${priceUsd != null ? priceUsd.toExponential(3) : "—"} USD per token · on-chain ${mcap!.toFixed(4)} ${pair} mcap (${cv.venue === "pumpswap" ? `${cfg.cluster} PumpSwap pool` : `${cfg.cluster} curve`} · ${px.source})` : "curve not found"}</div></div><div className="grid grid-cols-3 gap-5 text-right"><div><div className="eyebrow">Holders</div><div className="mono mt-1 text-lg font-semibold tabular-nums">{hc ?? "—"}</div></div><div><div className="eyebrow">24h vol</div><div className="mono mt-1 text-lg font-semibold tabular-nums">{v24.toFixed(3)} {pair}</div></div><div><div className="eyebrow">Progress</div><div className="mono mt-1 text-lg font-semibold tabular-nums">{prog.toFixed(1)}%</div></div></div></div>
-          <div className="mt-5"><LiveChart mint={mint} /></div></div>
-        <div className="card spot grid grid-cols-2 gap-6 p-5 sm:grid-cols-4 sm:p-6"><div><div className="eyebrow">Raised</div><div className="mono mt-2 text-lg font-semibold tabular-nums">{((cv?.realQuote ?? 0) / 1e9).toFixed(4)}</div><div className="mono mt-0.5 text-[11px] text-[var(--muted)]">{pair} on the curve</div></div><div><div className="eyebrow">Curve txs</div><div className="mono mt-2 text-lg font-semibold tabular-nums">{i.recent.length}{i.recent.length >= 30 ? "+" : ""}</div></div><div><div className="eyebrow">Supply</div><div className="mono mt-2 text-lg font-semibold tabular-nums">1B</div><div className="mono mt-0.5 text-[11px] text-[var(--muted)]">100% on the curve</div></div><div><div className="eyebrow">Fee split</div><div className="mono mt-2 text-lg font-semibold tabular-nums">{holders ? "holders" : i.shares ? i.shares.map((s: any) => s.bps / 100).join(" / ") : l?.split_status ?? "—"}</div><div className="mono mt-0.5 text-[11px] text-[var(--muted)]">{holders ? "pump.fun holder rewards" : "creator / platform %"}</div></div></div>
-        <div className="card spot overflow-hidden"><div className="flex items-center justify-between px-5 py-4 sm:px-6"><h2 className="eyebrow">Transactions</h2><span className="mono text-[11px] text-[var(--muted)]">bonding curve · latest {i.recent.length}</span></div><div className="overflow-x-auto"><table className="w-full min-w-[560px] text-sm"><thead><tr className="mono border-y border-[var(--line)] text-left text-[11px] uppercase tracking-[0.08em] text-[var(--muted)]"><th className="px-5 py-2.5 font-normal sm:px-6">Status</th><th className="px-3 py-2.5 font-normal">Signature</th><th className="px-5 py-2.5 text-right font-normal sm:px-6">Age</th></tr></thead><tbody className="mono tabular-nums">
-          {!i.recent.length && <tr><td colSpan={3} className="px-5 py-6 text-center text-[var(--muted)] sm:px-6">No transactions yet.</td></tr>}
-          {i.recent.map(r => <tr key={r.sig} className="border-b border-[var(--line)] last:border-0 hover:bg-[var(--bg-3)]"><td className={`px-5 py-2.5 sm:px-6 ${r.err ? "down" : "up"}`}>{r.err ? "Failed" : "OK"}</td><td className="px-3 py-2.5"><a href={solscanTx(r.sig)} target="_blank" rel="noreferrer" className="hover:underline">{r.sig.slice(0, 8)}…{r.sig.slice(-8)}</a></td><td className="px-5 py-2.5 text-right sm:px-6"><a href={solscanTx(r.sig)} target="_blank" rel="noreferrer" className="text-[var(--muted)] hover:text-[var(--fg)]">{r.time ? ago(new Date(r.time * 1000)) : "—"} ↗</a></td></tr>)}
-        </tbody></table></div></div></div>
-        <aside className="flex flex-col gap-3">
-          <div className="card spot p-5"><div className="flex items-center justify-between text-sm"><span className="eyebrow">{cv?.complete ? "Graduated" : "Bonding curve"}</span><span className="mono tabular-nums text-[var(--accent)]">{prog.toFixed(1)}%</span></div><div className="mt-3"><div className="relative w-full overflow-hidden bg-[var(--line)] h-2"><div className="h-full bg-[var(--accent)]" style={{ width: `${prog}%` }}></div></div></div><p className="mt-3 text-xs leading-relaxed text-[var(--muted)]">{cv?.complete ? "The curve completed. Liquidity now lives in a PumpSwap pool." : "When the curve fills, the coin graduates to a PumpSwap pool."}</p></div>
-          <div className="card spot p-5"><div className="eyebrow">Created by</div><div className="mt-3 flex items-center gap-3"><span className="mono inline-flex shrink-0 items-center justify-center bg-[var(--bg-3)] text-[9px] uppercase text-[var(--fg-2)] ring-1 ring-[var(--line)]" style={{ width: 40, height: 40 }}>{(cv?.creator ?? "?")[0]}</span><div className="min-w-0"><div className="mono truncate font-medium">{short(cv?.creator ?? l?.creator)}</div><div className="truncate text-sm text-[var(--muted)]">HeyClawLaunch launch wallet</div></div></div>{l && <div className="mono mt-3 text-[11px] text-[var(--muted)]">launched {ago(l.launched_at)} ago via HeyClawLaunch</div>}</div>
-          <div className="card spot p-5"><div className="eyebrow">Creator fees</div><p className="mt-2 text-sm leading-relaxed text-[var(--muted)]">{holders ? "Paid to holders through pump.fun. Never split." : xFee ? `80% to ${l.fee_label.split(" ")[0]}'s HeyClawLaunch wallet, 20% to the platform. Locked on chain.` : "80% to the fee wallet, 20% to the platform. Locked on chain."}</p><div className="mt-2 divide-y divide-[var(--line)]">{(i.shares ?? []).map((s: any) => <Row key={s.address} k={`${s.bps / 100}%`} v={short(s.address)} href={acct(s.address)} copy={s.address} />)}{l?.split_sig && <Row k="Split tx" v={short(l.split_sig)} href={solscanTx(l.split_sig)} />}</div></div>
-          <div className="card spot p-5"><div className="eyebrow">Contract</div><div className="mt-2 divide-y divide-[var(--line)]"><Row k="Mint" v={short(mint)} href={acct(mint)} copy={mint} />{curvePk && <Row k="Curve" v={short(curvePk)} href={acct(curvePk)} copy={curvePk} />}{l?.create_sig && <Row k="Launch tx" v={short(l.create_sig)} href={solscanTx(l.create_sig)} />}<Row k="Supply" v="1,000,000,000" /></div></div>
-        </aside></div></main>);
+    <main className="wrap py-6 sm:py-8"><div className="flex items-center justify-between gap-3"><Link className="mono text-[12px] text-[var(--muted)] hover:text-[var(--accent)]" href="/explore">← explore</Link>
+      <div className="flex gap-2"><a href={`https://solscan.io/token/${mint}${clusterQs()}`} target="_blank" rel="noreferrer" className="btn-ghost mono !h-9 !px-3 text-[12px]">Solscan ↗</a><Link href={`/bots?mint=${mint}`} className="btn-accent !h-9 !px-3 text-[12px]">Boost</Link><a href={pump} target="_blank" rel="noreferrer" className="btn-ghost !h-9 !px-3 text-[12px]">pump.fun ↗</a></div></div>
+      <div className="mt-4"><TokenTerminal mint={mint} name={l.name} ticker={l.ticker} logo={l.logo_cid ? `/api/ipfs/${l.logo_cid}` : null} pair={pair} supply={cv?.supply ?? 1e9} priceQuote={cv?.priceQuote ?? null} usdPerQuote={usdPerQuote} complete={!!cv?.complete} progress={prog} liqQuote={liqQuote} holders={hc} pool={cv?.pool ?? null} creator={cv?.creator ?? l.creator ?? null} launchedAt={l.launched_at ? new Date(l.launched_at).toISOString() : null}
+        description={dr?.description ?? null} x={dr?.x ?? null} website={dr?.website ?? null} telegram={dr?.telegram ?? null} shares={(i.shares ?? []).map((s: any) => ({ address: s.address, bps: s.bps }))} feeTo={holders ? "Paid to holders through pump.fun" : `80% to ${xFee ? l.fee_label.split(" ")[0] : "the fee wallet"}, 20% to the platform`} curve={curvePk || null} createSig={l.create_sig ?? null} /></div>
+    </main>);
 }

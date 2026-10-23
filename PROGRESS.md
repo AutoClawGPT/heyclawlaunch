@@ -63,3 +63,13 @@ See AUDIT.md for the full status table. Regression scripts: scripts/devnet/12-dr
   - volume Starter GRIN1 graduated/PumpSwap (site, 2W4KTc…) 9 trades, stop → paused, resume → queued PASS
   - volume Growth GRIN1 (site, 3GJ2sn…) running PASS
 - Remaining: MAX_ACTIVE=4 slots limits parallel orders; holder/volume bots tick ~1 trade per 6–20 s so full tiers take minutes–hours.
+
+## Project history (first commit → today)
+- **Oct 18 — foundation** (2ecd521 → 42b1708): initial commit, source/pages/components/lib/scripts uploaded in batches; quality gates 1–6; Vercel cron + function durations.
+- **Oct 18 — real data**: IPFS proxy racing gateways (90db024); real curve stats + token page real stats (17b4a05–5eb375e); Boost link to bots (08af5d4).
+- **Oct 18 — agents** (d33b0f5 → 666c5b8, 15 commits): agent libs, profiles, community, A2A, pages; skill.md v1.1, API-key login, /dashboard control panel (1150d3c → fa2f7b6).
+- **Oct 18 — launch/bots/Telegram**: chat-first launch, pay-from-any-wallet bots + dashboard, Telegram commands; AUDIT.md/PROGRESS.md.
+- **Oct 23 — shell & hardening**: collapsible sidebar, compact spacing, MCP stateless fix, rate limits everywhere, SEO/OG, ISR/CDN perf, box supervisor autostart, lint 0.
+- **Oct 23 — USD & graduated** (c5529e9 → f34c060): PumpSwap AMM module, graduated trading, USD mcap, USD/quote chart toggle, exact on-chain USD (no scaling).
+- **Oct 23 — bots capacity** (31080a7 → b383f47): per-order capital reserve, holder booster rent fix, real purchases of every bot kind.
+- **Oct 23 — UI pass (this pass)**: token page as a pump.fun coin page clone, Explore pump.fun-board cards (see FIXPLAN.md "Oct 23 UI pass").

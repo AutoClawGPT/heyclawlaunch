@@ -1,3 +1,4 @@
+import { genLimit } from "./gen-limit";
 import { createHash, randomBytes } from "crypto";
 import { sql } from "@/lib/db";
 import { cfg } from "@/lib/config";
@@ -88,6 +89,7 @@ export async function prepareLaunch(ctx: Ctx, a: PrepareArgs): Promise<{ text: s
   let err: string | undefined; const notes: string[] = [];
   // "make me a coin / you come up with everything": fill every missing creative field in one go
   if (a.auto_fill && (!(a.name ?? d.name) || !(a.ticker ?? d.ticker) || !(a.logo_image || a.logo_url || d.logo_cid) || (a.description ?? d.description) == null)) {
+    await genLimit(ctx);
     const { generateTokenIdea } = await import("@/lib/image-gen");
     const t = await generateTokenIdea(a.theme ?? a.name ?? d.name ?? undefined);
     if (!(a.name ?? d.name)) a.name = t.name; if (!(a.ticker ?? d.ticker)) a.ticker = t.ticker;

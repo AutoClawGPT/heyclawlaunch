@@ -5,6 +5,7 @@ import { confirmLaunch, myLaunches } from "@/lib/core/launch";
 import { getPairs, formatPairs } from "@/lib/core/pairs";
 import { myWallet, claimFees, withdraw, swap } from "@/lib/core/wallet";
 import type { ToolName } from "./defs";
+import { genLimit } from "@/lib/core/gen-limit";
 import { generateLogo, generateTokenIdea, logoPrompt } from "@/lib/image-gen";
 import { listTemplates, draftFromTemplate } from "@/lib/core/templates";
 import { leaderboard, nextReset, PRIZES } from "@/lib/core/leaderboard";
@@ -34,6 +35,7 @@ export async function runTool(ctx: Ctx, name: ToolName, args: any): Promise<Tool
       case "withdraw": return { text: await withdraw(ctx, args) };
       case "swap": return { text: await swap(ctx, args) };
       case "generate_logo": {
+        await genLimit(ctx);
         let subject = args?.prompt as string | undefined; let d: any = null;
         if (args?.draft_id || !subject) { try { d = await loadDraft(ctx, args?.draft_id); } catch {} }
         if (!subject) subject = d?.name ? `${d.name}${d.ticker ? ` ($${d.ticker})` : ""}${d.description ? `: ${d.description}` : ""}` : "a friendly robot mascot";
@@ -44,6 +46,7 @@ export async function runTool(ctx: Ctx, name: ToolName, args: any): Promise<Tool
         return { text, data: { image_url: g.url, ipfs: g.ipfs, cid: g.cid, model: g.model, draft } };
       }
       case "generate_token_idea": {
+        await genLimit(ctx);
         const t = await generateTokenIdea(args?.theme);
         let text = `Idea: ${t.name} ($${t.ticker})\n${t.description}\nLogo: ${t.logo.url}`; let draft: any, draftId: string | undefined;
         if (args?.apply_to_draft) { const r = await prepareLaunch(ctx, { start_new: true, name: t.name, ticker: t.ticker, description: t.description, logo_image: t.logo.url }); text += `\n\n${r.text}`; draft = pick(r.draft); draftId = r.draft.id; }

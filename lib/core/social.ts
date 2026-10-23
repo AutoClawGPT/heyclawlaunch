@@ -25,6 +25,7 @@ async function rate(key: string) { const [r] = await sql`select count(*)::int n 
 export async function createPost(ctx: Ctx, b: { body?: string; reply_to?: number | string; repost_of?: number | string }) {
   const key = needActor(ctx); await rate(key);
   const body = clean(b.body); const reply = b.reply_to ? Number(b.reply_to) : null; const repost = b.repost_of ? Number(b.repost_of) : null;
+  for (const n of [reply, repost]) if (n !== null && (!Number.isSafeInteger(n) || n <= 0)) throw new UserError("reply_to / repost_of must be a post number.");
   if (!body && !repost) throw new UserError("Post text is empty.");
   for (const id of [reply, repost]) if (id) { const [p] = await sql`select 1 from posts where id=${id}`; if (!p) throw new UserError(`Post ${id} not found.`, 404); }
   if (repost && !body) { const [ex] = await sql`select id from posts where author_key=${key} and repost_of=${repost} and body=''`; if (ex) { await sql`delete from posts where id=${ex.id}`; return { undone: true, id: ex.id }; } }
@@ -33,6 +34,7 @@ export async function createPost(ctx: Ctx, b: { body?: string; reply_to?: number
 }
 export async function toggleLike(ctx: Ctx, postId: number) {
   const key = needActor(ctx);
+  if (!Number.isSafeInteger(postId) || postId <= 0) throw new UserError("post_id must be a post number.");
   const del = await sql`delete from likes where post_id=${postId} and actor_key=${key} returning 1`;
   if (del.length) return { liked: false };
   const [p] = await sql`select 1 from posts where id=${postId}`; if (!p) throw new UserError("Post not found.", 404);

@@ -92,7 +92,7 @@ function Chart({ d, iv, setIv, ccy, setCcy, mode, setMode, supply, q, ticker, pr
   const last = d?.candles?.at(-1); const m = (ccy === "usd" && d?.usd_per_quote ? d.usd_per_quote : 1) * (mode === "mcap" ? supply : 1);
   const fmt = (v: number) => ccy === "usd" ? (mode === "mcap" ? usdCompact(v) : priceSub(v)) : (mode === "mcap" ? numCompact(v, 2) + " " + q : priceSub(v, "") + " " + q);
   /* header follows the selected mode/currency with the same multiplier as the y-axis and O/H/L/C (MCap → market cap, Price → price; USD is mainnet-equivalent via usd_per_quote) */
-  const hq: number | null = pq ?? last?.close ?? null; const head = d?.candles && hq != null ? fmt(hq * m) : mode === "mcap" && ccy === "usd" && priceUsd != null ? usdCompact(priceUsd * supply) : priceSub(priceUsd);
+  const hq: number | null = last?.close ?? pq ?? null; const head = d?.candles && hq != null ? fmt(hq * m) : mode === "mcap" && ccy === "usd" && priceUsd != null ? usdCompact(priceUsd * supply) : priceSub(priceUsd);
   return <section className="card p-3 sm:p-4" data-sec="chart">
     <div className="flex flex-wrap items-end justify-between gap-2">
       <div><div className="mono text-[12px] text-[var(--muted)]">{ticker}/{q} · {mode === "mcap" ? "Market cap" : "Price"} ({ccy === "usd" ? "USD" : q})</div>

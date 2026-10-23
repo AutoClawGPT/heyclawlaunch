@@ -1,3 +1,4 @@
+import { limitIp } from "@/lib/ratelimit";
 // Private-key export: needs a signed-in session AND a fresh re-auth (a new SIWS signature from the same wallet,
 // or for X-only accounts a session created in the last 10 minutes). Returns the key once, never cached or logged.
 import bs58 from "bs58";
@@ -8,7 +9,7 @@ import { getOrCreateCustodial, withCustodialSigner } from "@/lib/keystore";
 import { sql } from "@/lib/db";
 export const runtime = "nodejs"; export const dynamic = "force-dynamic";
 const H = { "cache-control": "no-store, private", "x-robots-tag": "noindex" };
-export async function POST(req: Request) {
+export async function POST(req: Request) { { const busy = await limitIp(req, "export", 10, 600); if (busy) return busy; }
   const u = await currentUser(); if (!u) return Response.json({ error: "Sign in first." }, { status: 401, headers: H });
   const b = await req.json().catch(() => ({})); const ctx = await webCtx();
   if (b.step === "challenge") {

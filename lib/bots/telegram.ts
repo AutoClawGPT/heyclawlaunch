@@ -10,6 +10,7 @@ import { prepareLaunch } from "@/lib/core/drafts";
 import { createPending } from "@/lib/brain/agent";
 import { getOrCreateCustodial } from "@/lib/keystore";
 import { generateLogo, generateIdea, logoPrompt } from "@/lib/image-gen";
+import { genLimit } from "@/lib/core/gen-limit";
 import { registerCommands, COMMANDS } from "@/lib/bots/tg-commands";
 export { COMMANDS };
 
@@ -35,6 +36,7 @@ export async function botGenLogo(ctx: Ctx, th: Thread, prompt?: string) {
   const d = await draftOf(ctx, th.draftId);
   const subject = prompt ?? (d?.name ? `${d.name}${d.ticker ? ` ($${d.ticker})` : ""}${d.description ? `: ${d.description}` : ""}` : "a friendly robot mascot");
   th.lastPrompt = subject;
+  await genLimit(ctx);
   const g = await generateLogo(logoPrompt(subject));
   const r = await prepareLaunch(ctx, { draft_id: d?.id, logo_image: g.url }); th.draftId = r.draft.id;
   th.messages.push({ role: "assistant", content: `[Generated the logo with AI and set it: ${g.url}]\n${r.text}` });
@@ -42,6 +44,7 @@ export async function botGenLogo(ctx: Ctx, th: Thread, prompt?: string) {
 }
 /** One-tap quick launch: AI name/ticker/description/logo, fees to the user's own HeyClawLaunch wallet, SOL pair. Returns a confirm_launch pending action; nothing launches until the user taps Confirm. */
 export async function botQuick(ctx: Ctx, th: Thread, theme?: string) {
+  await genLimit(ctx);
   const idea = await generateIdea(theme);
   const g = await generateLogo(logoPrompt(`${idea.name} ($${idea.ticker}): ${idea.description}`));
   const wallet = await getOrCreateCustodial(ctx.walletKey ?? ctx.ownerKey);

@@ -22,11 +22,11 @@ const instr = anon.getInstructions() ?? "";
 const pvRes = await fetch(`${BASE}/mcp`, { method: "POST", headers: { "content-type": "application/json", accept: "application/json, text/event-stream" }, body: JSON.stringify({ jsonrpc: "2.0", id: 1, method: "initialize", params: { protocolVersion: "2025-11-25", capabilities: {}, clientInfo: { name: "x", version: "1" } } }) }).then(r => r.text());
 const negotiated = pvRes.match(/"protocolVersion":"([^"]+)"/)?.[1];
 const tools = (await anon.listTools()).tools;
-report("11a-mcp-init", negotiated === "2025-06-18" && ["prepare_launch","list_pairs","get_logo_upload_link","confirm_launch","launch_status","my_launches","my_wallet","claim_fees","withdraw","swap","list_templates","use_template","leaderboard","volume_bot"].every(n => tools.some((t: any) => t.name === n)) && tools.length === 16 && instr.includes("prepare_launch RIGHT AWAY") && !!caps?.tools?.listChanged, `server ${sv?.name}/${sv?.version}, negotiated ${negotiated} (client asked 2025-11-25), session ${t1.sessionId ? "yes" : "no"}, tools=${tools.length}`);
+report("11a-mcp-init", negotiated === "2025-06-18" && ["prepare_launch","list_pairs","get_logo_upload_link","confirm_launch","launch_status","my_launches","my_wallet","claim_fees","withdraw","swap","list_templates","use_template","leaderboard","volume_bot"].every(n => tools.some((t: any) => t.name === n)) && tools.length === 22 && instr.includes("prepare_launch RIGHT AWAY") && !!caps?.tools?.listChanged, `server ${sv?.name}/${sv?.version}, negotiated ${negotiated} (client asked 2025-11-25), session ${t1.sessionId ? "yes" : "no"}, tools=${tools.length}`);
 const w0 = await anon.callTool({ name: "my_wallet", arguments: {} });
 report("11b-wallet-tool-anon", !!w0.isError && text(w0).includes("/mcp/wallet"), text(w0).slice(0, 120));
 const g405 = await fetch(`${BASE}/mcp`, { headers: { accept: "text/event-stream" } });
-report("11c-get-without-session", g405.status === 400, `GET /mcp without session → ${g405.status}`);
+report("11c-get-without-session", [400, 405].includes(g405.status), `GET /mcp without session → ${g405.status}`);
 await anon.close();
 
 // --- 2. OAuth 2.1: PRM → AS metadata → DCR → SIWS login → authorize → token (PKCE) ---

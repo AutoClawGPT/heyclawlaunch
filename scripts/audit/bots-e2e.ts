@@ -27,7 +27,7 @@ const reuse = await fetch(`${B}/api/bots/pay`, { method: "POST", headers: H, bod
 rep("reuse-rejected", reuse.s >= 400 || /already|used|reuse/i.test(JSON.stringify(reuse.j)), reuse);
 fs.writeFileSync("/workspace/audit2/bots.json", JSON.stringify({ order: p.order_id, order2: o2.payment.order_id, sig }));
 await new Promise(r => setTimeout(r, 40000));
-let d = await fetch(`${B}/api/bots`, { headers: H }).then(r => r.json()); const mine = (d.orders ?? d.mine ?? []).find((x: any) => x.id === p.order_id);
+const d = await fetch(`${B}/api/bots`, { headers: H }).then(r => r.json()); const mine = (d.orders ?? d.mine ?? []).find((x: any) => x.id === p.order_id);
 rep("dashboard-lists-order", !!mine, mine && { status: mine.status, volume: mine.volume_sol ?? mine.volume, trades: mine.trades });
 let c = await fetch(`${B}/api/bots/control`, { method: "POST", headers: H, body: JSON.stringify({ order_id: p.order_id, action: "stop" }) }).then(r => r.json()); rep("bot-stop", c.status === "paused", c);
 c = await fetch(`${B}/api/bots/control`, { method: "POST", headers: H, body: JSON.stringify({ order_id: p.order_id, action: "resume" }) }).then(r => r.json()); rep("bot-resume", c.status === "queued", c);

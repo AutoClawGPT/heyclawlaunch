@@ -56,6 +56,7 @@ export async function label(ownerKey: string) {
   if (ownerKey.startsWith("x:")) { const [h] = await sql`select handle from x_handles where x_user_id=${ownerKey.slice(2)} limit 1`; return h ? `@${h.handle}` : `X user ${ownerKey.slice(-4)}`; }
   if (ownerKey.startsWith("user:")) { const [u] = await sql`select wallet_address, x_username from users where id=${ownerKey.slice(5)}::uuid`.catch(() => []); if (u?.x_username) return `@${u.x_username}`; if (u?.wallet_address) return `${u.wallet_address.slice(0, 4)}…${u.wallet_address.slice(-4)}`; }
   if (ownerKey.startsWith("tg:")) return `Telegram ···${ownerKey.slice(-4)}`;
+  if (ownerKey.startsWith("agent:")) { const [a] = await sql`select handle from agents where id::text=${ownerKey.slice(6)}`.catch(() => []); if (a) return `@${a.handle}`; }
   return ownerKey.slice(0, 12);
 }
 export type Row = { rank: number; owner: string; label: string; volume: number; coins: number };

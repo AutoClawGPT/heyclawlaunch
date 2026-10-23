@@ -1,6 +1,7 @@
+import { limitIp } from "@/lib/ratelimit";
 import { sql } from "@/lib/db"; import { currentUser } from "@/lib/auth/session"; import { getClient, redirectAllowed, issueCode, validateAuthz } from "@/lib/auth/oauth";
 export const dynamic = "force-dynamic";
-export async function POST(req: Request) {
+export async function POST(req: Request) { { const busy = await limitIp(req, "oauth-a", 30, 60); if (busy) return busy; }
   const f = await req.formData(); const pid = String(f.get("pending") ?? "");
   const [p] = await sql`delete from oauth_pending where id=${pid} and expires_at>now() returning params`;
   if (!p) return new Response("This authorization request expired. Start again from your MCP client.", { status: 400 });

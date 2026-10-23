@@ -1,6 +1,7 @@
+import { limitIp } from "@/lib/ratelimit";
 import { registerClient } from "@/lib/auth/oauth"; import { json, options } from "@/lib/http";
 export const dynamic = "force-dynamic"; export const OPTIONS = options;
-export async function POST(req: Request) {
+export async function POST(req: Request) { { const busy = await limitIp(req, "oauth-r", 20, 3600); if (busy) return busy; }
   let body: any; try { body = await req.json(); } catch { return json({ error: "invalid_client_metadata", error_description: "JSON body required" }, 400); }
   const r = await registerClient(body);
   if ("error" in r) return json(r, 400);

@@ -1,3 +1,4 @@
+import { cfg } from "@/lib/config";
 import { lookup } from "dns/promises";
 import { isIP } from "net";
 import { redis, hasRedis } from "@/lib/redis";
@@ -8,12 +9,13 @@ const TTL = 6 * 3600;
 export async function imgOk(url: string | null | undefined): Promise<boolean> {
   if (!url) return false;
   if (!/^https:\/\//i.test(url)) return url.startsWith("/");
+  if (/^https:\/\/[^/]+\/api\/ipfs\/[A-Za-z0-9]{20,}/.test(url) && url.startsWith(cfg.appUrl + "/")) return true; // own IPFS proxy (races gateways; can be slower than the probe timeout on a cold start)
   const m = mem.get(url); if (m && Date.now() - m.at < TTL * 1000) return m.ok;
   const key = "hcl:img:" + url.slice(0, 300);
   if (hasRedis()) { try { const v = await redis().get<string>(key); if (v === "1" || v === "0") { mem.set(url, { ok: v === "1", at: Date.now() }); return v === "1"; } } catch {} }
   const ok = await probe(url);
-  mem.set(url, { ok, at: Date.now() });
-  if (hasRedis()) { try { await redis().set(key, ok ? "1" : "0", { ex: TTL }); } catch {} }
+  mem.set(url, { ok, at: ok ? Date.now() : Date.now() - (TTL - 600) * 1000 });
+  if (hasRedis()) { try { await redis().set(key, ok ? "1" : "0", { ex: ok ? TTL : 600 }); /* failures re-checked after 10 min */ } catch {} }
   return ok;
 }
 async function probe(url: string, hops = 0): Promise<boolean> {

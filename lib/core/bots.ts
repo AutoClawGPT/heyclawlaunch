@@ -10,7 +10,6 @@ import { previewGate, need } from "@/lib/core/wallet";
 import { UserError } from "@/lib/core/validate";
 import { redis, hasRedis } from "@/lib/redis";
 import { cfg, solscanTx } from "@/lib/config";
-import { coinInfo } from "@/lib/core/coin";
 import { listCoins } from "@/lib/core/market";
 
 const SOL = 1_000_000_000n;
@@ -39,7 +38,7 @@ export async function botMarkets(filter: "new" | "graduating" | "graduated" | "a
     const progress = r.progress, complete = r.complete;
     const st = complete ? "graduated" : progress >= 50 ? "graduating" : "new";
     if (filter !== "all" && st !== filter) continue;
-    out.push({ mint: r.mint, name: r.name, ticker: r.ticker, logo_cid: r.logo_cid, launched_at: r.launched_at, progress, complete, status: st, mcap: r.mcapQuote });
+    out.push({ mint: r.mint, name: r.name, ticker: r.ticker, logo_cid: r.logo_cid, launched_at: r.launched_at, progress, complete, status: st, mcap: r.mcapQuote, mcap_usd: r.mcapUsd ?? null });
     if (out.length >= limit) break;
   }
   return out;
@@ -53,7 +52,7 @@ export async function orderBot(ctx: any, a: { mint: string; kind: string; packag
   const [coin] = await sql`select name, ticker, owner_key, quote_mint from launches where mint=${mint.toBase58()}`;
   if (!coin) throw new UserError(`Volume bots only run on coins launched on ${cfg.brand}.`);
   if (coin.quote_mint && coin.quote_mint !== "So11111111111111111111111111111111111111112") throw new UserError("Bots run on SOL-pair coins only.");
-  const ci: any = await coinInfo(mint.toBase58()).catch(() => null); if (ci?.curve?.complete) throw new UserError("This coin graduated off the bonding curve; bots run on curve coins.");
+  /* graduated coins trade on their PumpSwap pool (lib/trade/curve.ts routes automatically) */
   const wallet = new PublicKey(await getOrCreateCustodial(key)); const bal = BigInt(await conn().getBalance(wallet));
   if (kind === "sell") { const tb = await tokenBalance(wallet, mint); if (tb === 0n) throw new UserError(`Your wallet holds no $${coin.ticker} to sell.`); }
   const lw = BigInt(await conn().getBalance(launchWallet().publicKey));
@@ -144,7 +143,7 @@ export async function orderBotExternal(ctx: any, a: { mint: string; kind: string
   let mint: PublicKey; try { mint = new PublicKey(a.mint); } catch { throw new UserError("That isn't a valid mint address."); }
   const [coin] = await sql`select name, ticker, quote_mint from launches where mint=${mint.toBase58()}`;
   if (!coin) throw new UserError(`Volume bots only run on coins launched on ${cfg.brand}.`);
-  const ci: any = await coinInfo(mint.toBase58()).catch(() => null); if (ci?.curve?.complete) throw new UserError("This coin graduated off the bonding curve; bots run on curve coins.");
+  /* graduated coins trade on their PumpSwap pool (lib/trade/curve.ts routes automatically) */
   const ref = (await import("@solana/web3.js")).Keypair.generate().publicKey.toBase58(); const to = launchWallet().publicKey.toBase58();
   const [o] = await sql`insert into bot_orders(owner_key,mint,kind,package,price_lamports,target_volume_lamports,max_trades,status,pay_ref,pay_to,pay_expires_at) values(${owner},${mint.toBase58()},${kind},${p.id},${p.price.toString()},${p.volume.toString()},${p.trades},'awaiting_payment',${ref},${to},now() + make_interval(mins => ${PAY_TTL_MIN})) returning id`;
   const amount = Number(p.price) / 1e9;

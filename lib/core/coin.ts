@@ -10,6 +10,11 @@ export async function coinInfo(mint: string) {
     const sold = BigInt(global.initialRealTokenReserves.toString()) - BigInt(bc.realTokenReserves.toString());
     curve = { complete: bc.complete, creator: bc.creator.toBase58(), realQuote: Number((bc as any).realQuoteReserves ?? (bc as any).realSolReserves.toString()), progress: Math.min(100, Number(sold * 10000n / BigInt(global.initialRealTokenReserves.toString())) / 100), priceQuote: (Number(((bc as any).virtualQuoteReserves ?? (bc as any).virtualSolReserves).toString()) / 1e9) / (Number(bc.virtualTokenReserves.toString()) / 1e6), vq0: Number((bc as any).initialVirtualQuoteReserves?.toString() ?? global.initialVirtualQuoteReserves?.toString() ?? 30e9), supply: Number(bc.tokenTotalSupply?.toString() ?? 1e15) / 1e6 };
   } catch {}
+  if (curve) curve.venue = "curve";
+  if (curve?.complete) { // graduated: the live price is on the PumpSwap pool, the curve account is frozen
+    const p = await (await import("@/lib/core/amm")).poolInfo(mint).catch(() => null);
+    if (p) { curve.venue = "pumpswap"; curve.pool = p.pool; curve.priceQuote = p.priceQuote; curve.poolQuote = Number(p.quoteRaw); curve.progress = 100; }
+  }
   try { const s = await readSharingConfig(new PublicKey(mint)); if (s) sc = s.shareholders.map((x: any) => ({ address: x.address.toBase58(), bps: x.shareBps })); } catch {}
   const sigs = await conn().getSignaturesForAddress(bondingCurvePda(new PublicKey(mint)), { limit: 30 }).catch(() => []);
   return { launch: l ?? null, curve, shares: sc, recent: sigs.map(s => ({ sig: s.signature, time: s.blockTime, err: !!s.err })) };

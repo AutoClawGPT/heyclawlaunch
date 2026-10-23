@@ -172,9 +172,14 @@ export async function swap(ctx: Ctx, a: { from?: string; to: string; amount: str
     if (!(await curveExists(mint))) throw new UserError("That token has no pump.fun bonding curve on this cluster.");
     const sdk = online(); const [global, feeConfig] = await Promise.all([sdk.fetchGlobal(), sdk.fetchFeeConfig()]);
     route = `pump.fun bonding curve (${cfg.cluster})`;
-    if (from.mint === "SOL") {
+    const amm = await import("@/lib/core/amm"); const bcState = await sdk.fetchBondingCurve(mint).catch(() => null);
+    if (bcState?.complete) { // graduated → PumpSwap pool
+      const pi = await amm.poolInfo(mint.toBase58()); if (!pi) throw new UserError("This coin graduated but its PumpSwap pool wasn't found.");
+      route = `PumpSwap pool (${cfg.cluster}, graduated coin)`;
+      if (from.mint === "SOL") { expected = `${(Number(amt) / 1e9 / pi.priceQuote * 0.99).toLocaleString("en-US", { maximumFractionDigits: 2 })} $${coin.symbol}`; exec = () => withCustodialSigner(key, async kp => (await amm.ammBuy(kp, mint, amt, slip)).sig); }
+      else { expected = `${(Number(amt) / 10 ** coin.decimals * pi.priceQuote * 0.99).toFixed(6)} SOL`; exec = () => withCustodialSigner(key, async kp => (await amm.ammSell(kp, mint, amt, slip)).sig); }
+    } else if (from.mint === "SOL") {
       const st = await sdk.fetchBuyState(mint, addr, coin.program);
-      if (st.bondingCurve.complete) throw new UserError("This coin graduated; swap it on mainnet through Jupiter.");
       const out = getBuyV3TokenAmountFromQuoteAmount({ global, feeConfig, mintSupply: global.tokenTotalSupply, bondingCurve: st.bondingCurve, amount: new BN(amt.toString()), curveBaseTokenBalance: st.curveBaseTokenBalance });
       expected = `${fromBase(BigInt(out.toString()), coin.decimals)} $${coin.symbol}`;
       exec = () => withCustodialSigner(key, async kp => sendV0(await PUMP_SDK.buyExactQuoteInV3Instructions({ bondingCurve: st.bondingCurve, associatedUserAccountInfo: st.associatedUserAccountInfo, mint, user: addr, amount: out, quoteAmount: new BN(amt.toString()), slippage: slip, tokenProgram: coin.program, quoteTokenProgram: st.quoteTokenProgram }), [kp]));

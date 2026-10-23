@@ -1,3 +1,4 @@
+import { imgOk } from "./imgcheck";
 import { PublicKey } from "@solana/web3.js";
 import { sql } from "@/lib/db";
 import { cfg, solscanTx } from "@/lib/config";
@@ -15,6 +16,7 @@ export async function who(keys: string[]) {
   if (us.length) for (const u of await sql`select id,wallet_address,x_username,x_avatar from users where id::text = any(${us})`) out.set(`user:${u.id}`, { key: `user:${u.id}`, name: u.x_username ? "@" + u.x_username : `${String(u.wallet_address ?? "user").slice(0, 4)}…${String(u.wallet_address ?? "").slice(-4)}`, handle: u.wallet_address ? `${u.wallet_address.slice(0, 4)}…${u.wallet_address.slice(-4)}` : "user", avatar: u.x_avatar, kind: "user", url: u.wallet_address ? `/scanner?wallet=${u.wallet_address}` : null, verified: false });
   const xs = ids.filter(k => k.startsWith("x:")).map(k => k.slice(2));
   if (xs.length) for (const u of await sql`select x_user_id,x_username,x_avatar from users where x_user_id = any(${xs})`) out.set(`x:${u.x_user_id}`, { key: `x:${u.x_user_id}`, name: "@" + u.x_username, handle: "@" + u.x_username, avatar: u.x_avatar, kind: "user", url: null, verified: true });
+  await Promise.all([...out.values()].map(async v => { if (v.avatar && !(await imgOk(v.avatar))) v.avatar = null; }));
   for (const k of ids) if (!out.has(k)) out.set(k, { key: k, name: k.startsWith("tg:") ? "Telegram user" : "user", handle: k.split(":")[0], avatar: null, kind: "user", url: null, verified: false });
   return out;
 }

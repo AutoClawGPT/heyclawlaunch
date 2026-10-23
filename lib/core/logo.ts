@@ -10,7 +10,7 @@ export function sniff(b: Uint8Array): string | null {
   if (b[0] === 0x52 && b[1] === 0x49 && b[2] === 0x46 && b[3] === 0x46 && b[8] === 0x57 && b[9] === 0x45) return "image/webp";
   return null;
 }
-const privateIp = (ip: string) => /^(10\.|127\.|0\.|169\.254\.|192\.168\.|172\.(1[6-9]|2\d|3[01])\.|::1$|fc|fd|fe80)/i.test(ip);
+export const privateIp = (ip: string) => /^(10\.|127\.|0\.|169\.254\.|192\.168\.|172\.(1[6-9]|2\d|3[01])\.|::1$|fc|fd|fe80)/i.test(ip);
 async function safeFetch(url: string, hops = 0): Promise<Uint8Array> {
   let u: URL;
   try { u = new URL(url); } catch { throw new UserError("That logo link is not a valid URL."); }

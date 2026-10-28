@@ -1,4 +1,5 @@
 import { fmtUsd } from "@/lib/core/price";
+import { sampleFreshCurveBuy, sampleLine } from "@/lib/pump/preview-live";
 import { friendlyChainError } from "@/lib/solana/errors";
 // Deterministic Telegram commands (no LLM round-trip): templates, wallet, bots, leaderboard, airdrops, key export.
 import { Bot, InlineKeyboard, type Context } from "grammy";
@@ -66,7 +67,8 @@ export function registerCommands(bot: Bot, h: { converse: (c: Context, t: string
     const id = h.draftId(c); const ctx = await tgCtx(c.from!.id);
     const [d] = id ? await sql`select * from drafts where id=${id} and owner_key=${ctx.ownerKey}` : [];
     if (!d) return c.reply("No coin in progress. Start with /launch, /quick or /templates.");
-    const card = `PREVIEW\nName: ${d.name ?? "—"}\nTicker: ${d.ticker ? "$" + d.ticker : "—"}\nDescription: ${d.description ?? "—"}\nLogo: ${d.logo_cid ? "set ✅" : "missing"}\nFees: ${d.fee_mode === "wallet" ? `wallet ${d.fee_wallet}` : d.fee_mode === "x" ? `@${d.fee_x_handle}` : d.fee_mode ?? "—"} (80% to recipient · 20% platform)\nPair: ${d.pair_symbol ?? "SOL"} · no dev buy · 0 SOL`;
+    const card = `PREVIEW\nName: ${d.name ?? "—"}\nTicker: ${d.ticker ? "$" + d.ticker : "—"}\nDescription: ${d.description ?? "—"}\nLogo: ${d.logo_cid ? "set ✅" : "missing"}\nFees: ${d.fee_mode === "wallet" ? `wallet ${d.fee_wallet}` : d.fee_mode === "x" ? `@${d.fee_x_handle}` : d.fee_mode ?? "—"} (80% to recipient · 20% platform)\nPair: ${d.pair_symbol ?? "SOL"} · no dev buy · 0 SOL`
+      + await sampleFreshCurveBuy(0.1).then(p => `\n\n📊 ${sampleLine(p)}`).catch(() => "");
     const ready = d.name && d.ticker && d.logo_cid;
     if (!ready) return c.reply(card + "\n\nStill missing details — just reply with them.");
     const p = await createPending(ctx, "confirm_launch", { draft_id: d.id });

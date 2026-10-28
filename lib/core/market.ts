@@ -8,10 +8,13 @@ const g = globalThis as any; g.__mk ??= new Map<string, { t: number; v: any }>()
 export async function curveStates(mints: string[]) { return curves(mints); }
 async function curves(mints: string[]) {
   const out = new Map<string, any>(); const need = mints.filter(m => { const c = g.__mk.get(m); if (c && Date.now() - c.t < 30_000) { out.set(m, c.v); return false; } return true; });
+  // Live Global params (cached 5m); constants are fallbacks when Global is unreadable.
+  if (need.length && (!g.__mkGl || Date.now() - g.__mkGl.t > 300_000)) { const gl: any = await online().fetchGlobal().catch(() => null); g.__mkGl = { t: Date.now(), initReal: gl?.initialRealTokenReserves ? BigInt(gl.initialRealTokenReserves.toString()) || null : g.__mkGl?.initReal ?? null, supply: gl?.tokenTotalSupply ? Number(gl.tokenTotalSupply.toString()) || null : g.__mkGl?.supply ?? null }; }
+  const IR: bigint = g.__mkGl?.initReal ?? INIT_REAL, GSUP: number = g.__mkGl?.supply ?? 1e15;
   for (let i = 0; i < need.length; i += 100) {
     const chunk = need.slice(i, i + 100);
     const infos = await conn().getMultipleAccountsInfo(chunk.map(m => bondingCurvePda(new PublicKey(m)))).catch(() => []);
-    infos.forEach((info: any, k: number) => { let v = null; try { if (info) { const bc: any = PUMP_SDK.decodeBondingCurve(info); const vq = Number((bc.virtualQuoteReserves ?? bc.virtualSolReserves).toString()), vt = Number(bc.virtualTokenReserves.toString()); const sold = INIT_REAL - BigInt(bc.realTokenReserves.toString()); v = { complete: bc.complete, progress: bc.complete ? 100 : Math.max(0, Math.min(100, Number(sold * 10000n / INIT_REAL) / 100)), mcapQuote: vt ? (vq / vt) * 1e9 * 1e6 / 1e9 : null, raised: Number((bc.realQuoteReserves ?? bc.realSolReserves).toString()) / 1e9 }; } } catch {} g.__mk.set(chunk[k], { t: Date.now(), v }); out.set(chunk[k], v); });
+    infos.forEach((info: any, k: number) => { let v = null; try { if (info) { const bc: any = PUMP_SDK.decodeBondingCurve(info); const vq = Number((bc.virtualQuoteReserves ?? bc.virtualSolReserves).toString()), vt = Number(bc.virtualTokenReserves.toString()); const sup = Number(bc.tokenTotalSupply?.toString() ?? 0) || GSUP; const sold = IR - BigInt(bc.realTokenReserves.toString()); v = { complete: bc.complete, progress: bc.complete ? 100 : Math.max(0, Math.min(100, Number(sold * 10000n / IR) / 100)), mcapQuote: vt ? (vq / vt) * sup / 1e9 : null, raised: Number((bc.realQuoteReserves ?? bc.realSolReserves).toString()) / 1e9 }; } } catch {} g.__mk.set(chunk[k], { t: Date.now(), v }); out.set(chunk[k], v); });
   }
   const grad = [...out.entries()].filter(([, v]) => v?.complete);
   if (grad.length) { const { poolInfo } = await import("@/lib/core/amm"); await Promise.all(grad.map(async ([m, v]) => { const p = await poolInfo(m).catch(() => null); if (p) { v.mcapQuote = p.priceQuote * 1e9; v.progress = 100; } })); }

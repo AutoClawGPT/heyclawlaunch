@@ -129,6 +129,8 @@ The same tools work in both places:
 
 ### Launch a coin
 
+Launches have no dev buy. To see what a sample buy would get on a FRESH curve (live devnet Global, read-only): \`curl -s "${B}/api/preview-buy?sol=0.1"\` → tokens_out, pct_supply, total_cost_sol (incl. fees).
+
 \`\`\`bash
 T=${B}/api/v1/tools
 curl -s -X POST $T/prepare_launch -H "Authorization: Bearer $KEY" -H "content-type: application/json" -d '{

@@ -1,4 +1,5 @@
 // Volume indexer + real-time leaderboard (Upstash sorted sets) + daily/weekly devnet SOL airdrops.
+import { markPriceFromReserves, tradeEventReservesFromLogs } from "@/lib/pump/candle-mark";
 import { PublicKey } from "@solana/web3.js";
 import { sql } from "@/lib/db";
 import { conn, launchWallet } from "@/lib/solana";
@@ -38,7 +39,10 @@ export async function indexTradesOnce(maxCoins = 40) {
       const lam = delta < 0n ? -delta : delta, side = delta > 0n ? "buy" : "sell";
       const tb = (arr: any[] | null | undefined) => Number(arr?.find(b => b.mint === c.mint && b.owner === curve.toBase58())?.uiTokenAmount?.uiAmount ?? 0);
       const tokens = Math.abs(tb(tx.meta.postTokenBalances) - tb(tx.meta.preTokenBalances));
-      const price = tokens > 0 ? Number(lam) / 1e9 / tokens : null;
+      // Prefer the curve's post-trade mark price (TradeEvent virtual reserves in the tx logs); fall back to the trade's average fill price.
+      const ev = tradeEventReservesFromLogs(tx.meta.logMessages, new PublicKey(c.mint).toBytes());
+      const mark = ev && ev.vSol > 0n && ev.vToken > 0n ? markPriceFromReserves(ev.vSol, ev.vToken) : 0;
+      const price = mark > 0 ? mark : tokens > 0 ? Number(lam) / 1e9 / tokens : null;
       const ins = await sql`insert into curve_trades(sig,mint,owner_key,side,lamports,trader,ts,tokens,price) values(${s.signature},${c.mint},${c.owner_key},${side},${lam.toString()},${keys[0].toBase58()},${new Date((s.blockTime ?? Date.now() / 1000) * 1000)},${tokens},${price}) on conflict do nothing returning sig`;
       if (!ins.length) continue;
       const when = new Date((s.blockTime ?? Date.now() / 1000) * 1000), sol = Number(lam) / 1e9;

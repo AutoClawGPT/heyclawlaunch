@@ -33,3 +33,20 @@ export async function sendSol(from: Keypair, to: PublicKey, lamports: bigint) {
   if (pimlicoEnabled()) { try { return await sponsoredSend([SystemProgram.transfer({ fromPubkey: from.publicKey, toPubkey: to, lamports })], [from]); } catch (e: any) { console.warn("[pimlico] falling back:", String(e.message).slice(0, 160)); } }
   return sendV0([SystemProgram.transfer({ fromPubkey: from.publicKey, toPubkey: to, lamports })], [from]);
 }
+
+/** Clamp a bot buy for thin devnet curves: cap at `pctOfVQ`% of the curve's virtual SOL (suggestMaxTradeSol) and, when
+ * `maxRoundTripLossPct` is set, shrink until an immediate buy→sell round trip (fees + impact, simulateBuySellRoundTrip) stays under it.
+ * Never below `floor`. Graduated coins (PumpSwap) or read errors → unchanged. Additive: tiers keep their sizes; this only clamps. */
+export async function sizeBotBuy(mint: PublicKey, want: bigint, o: { pctOfVQ?: number; maxRoundTripLossPct?: number; floor?: bigint } = {}): Promise<bigint> {
+  try {
+    const { suggestMaxTradeSol, simulateBuySellRoundTrip } = await import("@/lib/pump/bot-sizing");
+    const [{ global }, bc] = await Promise.all([gf(), online().fetchBondingCurve(mint)]);
+    if (bc.complete) return want;
+    const vQ = BigInt(((bc as any).virtualQuoteReserves ?? (bc as any).virtualSolReserves).toString()), vT = BigInt(bc.virtualTokenReserves.toString());
+    const pb = Number(global.feeBasisPoints?.toString() ?? 95), cb = Number(global.creatorFeeBasisPoints?.toString() ?? 5);
+    const floor = o.floor ?? 1_000_000n; let amt = want;
+    const cap = suggestMaxTradeSol(vQ, o.pctOfVQ ?? 2); if (amt > cap) amt = cap;
+    if (o.maxRoundTripLossPct != null) for (let i = 0; i < 6 && amt > floor && simulateBuySellRoundTrip(amt, vQ, vT, pb, cb).lossPct > o.maxRoundTripLossPct; i++) amt = (amt * 7n) / 10n;
+    return amt < floor ? (want < floor ? want : floor) : amt;
+  } catch { return want; }
+}

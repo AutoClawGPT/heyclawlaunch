@@ -5,7 +5,7 @@ import { PublicKey } from "@solana/web3.js";
 import { sql } from "@/lib/db";
 import { conn, launchWallet } from "@/lib/solana";
 import { getOrCreateCustodial, withCustodialSigner } from "@/lib/keystore";
-import { buy, sell, sendSol, tokenBalance } from "@/lib/trade/curve";
+import { buy, sell, sendSol, sizeBotBuy, tokenBalance } from "@/lib/trade/curve";
 import { previewGate, need } from "@/lib/core/wallet";
 import { UserError } from "@/lib/core/validate";
 import { redis, hasRedis } from "@/lib/redis";
@@ -118,9 +118,9 @@ export async function botTickOnce() {
         // Rotate buy→sell cycles across VOL_WALLETS bot wallets; each sell keeps a small slice (5–15%) so every wallet that traded stays a real holder.
         const wi = Math.floor(o.trades / 2) % VOL_WALLETS; const pk = await fund(o, wi, p.capital); const k = botKey(o, wi); const tb = await tokenBalance(pk, mint);
         if (o.trades % 2 === 1 && tb > 0n) { const keep = BigInt(5 + Math.floor(Math.random() * 11)); const amt = tb - (tb * keep) / 100n; const r = await withCustodialSigner(k, kp => sell(kp, mint, amt > 0n ? amt : tb)); vol = r.lamports; await log(o, "sell", r.lamports, pk.toBase58(), r.sig); }
-        else { const amt = rnd(p.tradeMin, p.tradeMax); const r = await withCustodialSigner(k, kp => buy(kp, mint, amt)); vol = amt; await log(o, "buy", amt, pk.toBase58(), r.sig); }
+        else { const amt = await sizeBotBuy(mint, rnd(p.tradeMin, p.tradeMax), { pctOfVQ: 2, maxRoundTripLossPct: 6 }); const r = await withCustodialSigner(k, kp => buy(kp, mint, amt)); vol = amt; await log(o, "buy", amt, pk.toBase58(), r.sig); }
       } else if (o.kind === "buy") {
-        const pk = await fund(o, 0, p.capital); const amt = rnd(p.tradeMin, p.tradeMax);
+        const pk = await fund(o, 0, p.capital); const amt = await sizeBotBuy(mint, rnd(p.tradeMin, p.tradeMax), { pctOfVQ: 2 });
         const r = await withCustodialSigner(botKey(o, 0), kp => buy(kp, mint, amt)); vol = amt; await log(o, "buy", amt, pk.toBase58(), r.sig);
       } else if (o.kind === "holders") {
         const i = o.trades + 1; const pk = await fund(o, i, 7_000_000n); // ATA rent + pump volume-accumulator rent + buy + fees; payer must stay rent-exempt

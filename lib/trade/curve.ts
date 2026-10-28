@@ -42,7 +42,7 @@ export async function sizeBotBuy(mint: PublicKey, want: bigint, o: { pctOfVQ?: n
     const { suggestMaxTradeSol, simulateBuySellRoundTrip } = await import("@/lib/pump/bot-sizing");
     const [{ global }, bc] = await Promise.all([gf(), online().fetchBondingCurve(mint)]);
     if (bc.complete) return want;
-    const vQ = BigInt(((bc as any).virtualQuoteReserves ?? (bc as any).virtualSolReserves).toString()), vT = BigInt(bc.virtualTokenReserves.toString());
+    const vs = BigInt((bc as any).virtualSolReserves?.toString() ?? 0), vq = BigInt((bc as any).virtualQuoteReserves?.toString() ?? 0); const vQ = vs > 0n ? vs : vq, vT = BigInt(bc.virtualTokenReserves.toString());
     const pb = Number(global.feeBasisPoints?.toString() ?? 95), cb = Number(global.creatorFeeBasisPoints?.toString() ?? 5);
     const floor = o.floor ?? 1_000_000n; let amt = want;
     const cap = suggestMaxTradeSol(vQ, o.pctOfVQ ?? 2); if (amt > cap) amt = cap;

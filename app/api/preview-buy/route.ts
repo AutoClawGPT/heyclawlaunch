@@ -10,7 +10,7 @@ export async function GET(req: Request) { { const busy = await limitIp(req, "pub
   try {
     if (!g.__pgl || Date.now() - g.__pgl.t > 60_000) { const { online } = await import("@/lib/solana"); g.__pgl = { t: Date.now(), v: await online().fetchGlobal() }; }
     const gl: any = g.__pgl.v; const b = (x: any) => BigInt(x.toString());
-    const global = { initialVirtualSolReserves: b(gl.initialVirtualQuoteReserves ?? gl.initialVirtualSolReserves), initialVirtualTokenReserves: b(gl.initialVirtualTokenReserves), initialRealTokenReserves: b(gl.initialRealTokenReserves), tokenTotalSupply: b(gl.tokenTotalSupply) };
+    const global = { initialVirtualSolReserves: b(gl.initialVirtualSolReserves) /* SOL pair; initialVirtualQuoteReserves is for non-SOL quotes */, initialVirtualTokenReserves: b(gl.initialVirtualTokenReserves), initialRealTokenReserves: b(gl.initialRealTokenReserves), tokenTotalSupply: b(gl.tokenTotalSupply) };
     const feeBps = { protocolBps: Number(gl.feeBasisPoints?.toString() ?? 95), creatorBps: Number(gl.creatorFeeBasisPoints?.toString() ?? 5) };
     const r = previewLaunchBuy(sol > 0 ? { global, feeBps, solIn: BigInt(Math.round(sol * 1e9)) } : { global, feeBps, tokenOut: BigInt(Math.round(tok)) * 1_000_000n });
     const S = (x: bigint) => Number(x) / 1e9;
